@@ -13,6 +13,21 @@ test.describe("key workflows", () => {
     await page.evaluate(() => window.localStorage.clear())
   })
 
+  test("switch demo account from the account menu (FE-003)", async ({ page }) => {
+    await signIn(page, "J. Tan")
+    // Client-side navigation keeps the login page alive in a hidden Activity; its
+    // previous "signing in" state must not leave the button stuck on loading.
+    await page.getByRole("button", { name: "Account menu" }).click()
+    await page.getByRole("menuitem", { name: /Switch demo account/ }).click()
+    await page.waitForURL(/\/login\?switch=1/)
+    const cont = page.getByRole("button", { name: /Continue with Officer IdP/ })
+    await expect(cont).toBeEnabled()
+    await page.getByRole("radio", { name: /Lim W/ }).click()
+    await cont.click()
+    await page.waitForURL(/\/operations/)
+    await expect(page.getByRole("button", { name: "Account menu" })).toContainText("Lim W")
+  })
+
   test("triage a review-queue item into a new case (FE-017)", async ({ page }) => {
     await signIn(page, "J. Tan")
     await page.goto("/review?id=O-3402")

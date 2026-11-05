@@ -37,6 +37,18 @@ export function LoginScreen() {
 
   const { data: accounts = [], isPending } = useQuery({ queryKey: ["signin-accounts", idp], queryFn: () => listSignInAccounts(idp) })
 
+  // With Cache Components, Next keeps this page alive in a hidden <Activity>
+  // after a successful sign-in navigates away, so its state comes back on the
+  // next visit (e.g. "Switch demo account"). Effects are torn down when the page
+  // is hidden: clear the in-flight sign-in then, or the button would stay busy.
+  useEffect(
+    () => () => {
+      setPending(false)
+      setError(null)
+    },
+    []
+  )
+
   useEffect(() => {
     if (hydrated && sessionUserId && !switching && !expired) router.replace(next && next.startsWith("/") ? next : "/operations")
   }, [hydrated, sessionUserId, switching, expired, next, router])
