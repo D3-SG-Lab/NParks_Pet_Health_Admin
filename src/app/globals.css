@@ -1,0 +1,230 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * AQC Animal Health — design tokens.
+ * Values are sampled from docs/Admin_Design.pdf (web workbench screens).
+ * Every colour used by components must come from a token below.
+ */
+:root {
+  --radius: 0.75rem;
+
+  /* Surfaces & text */
+  --background: #f5f7f6;
+  --foreground: #14232a;
+  --card: #ffffff;
+  --card-foreground: #14232a;
+  --popover: #ffffff;
+  --popover-foreground: #14232a;
+  --muted: #eef2f1;
+  --muted-foreground: #5d6a6e;
+  --subtle: #f7f9f8;
+  --border: #dfe4e2;
+  --border-strong: #c9d2cf;
+  --input: #d3dbd8;
+  --ring: #0b6e69;
+
+  /* Brand */
+  --primary: #0b6e69;
+  --primary-hover: #095b57;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e6f2f0;
+  --selected: #f2f8f8;
+  --secondary: #eef2f1;
+  --secondary-foreground: #14232a;
+  --accent: #eef2f1;
+  --accent-foreground: #14232a;
+  --navy: #1f3a4d;
+  --navy-foreground: #ffffff;
+
+  /* Status — success / done / active */
+  --success: #13744a;
+  --success-soft: #e5f4ed;
+  --success-tile: #f6fbf7;
+  --success-border: #cfe8d9;
+  /* Status — warning / needs review / draft */
+  --warning: #995703;
+  --warning-soft: #fcf0da;
+  --warning-tile: #fffaf0;
+  --warning-border: #f1d9a8;
+  --warning-badge: #f0c27b;
+  --warning-badge-foreground: #3c1f00;
+  /* Status — abnormal finding */
+  --abnormal: #b33b00;
+  --abnormal-soft: #fff1e8;
+  --abnormal-tile: #fff8f2;
+  --abnormal-border: #f6cdb4;
+  /* Status — danger / overdue / destructive */
+  --destructive: #a02013;
+  --destructive-solid: #b42318;
+  --destructive-soft: #feecea;
+  --destructive-tile: #fff9f9;
+  --destructive-border: #e8bcb6;
+  /* Status — info / open / due */
+  --info: #1d5a9d;
+  --info-soft: #e7effa;
+  --info-border: #c9daf3;
+  /* AI surfaces */
+  --ai: #3d377f;
+  --ai-soft: #f0f0fc;
+  --ai-border: #dcdaf6;
+  --ai-accent: #524dc3;
+  /* Neutral chip */
+  --neutral: #545d62;
+  --neutral-soft: #edf1f2;
+
+  /* Sidebar */
+  --sidebar: #0b3d3c;
+  --sidebar-foreground: #e4eeec;
+  --sidebar-muted: #9db8b4;
+  --sidebar-hover: #184848;
+  --sidebar-accent: #285453;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-indicator: #8fd0c4;
+  --sidebar-border: #1f4f4d;
+  --sidebar-primary: #0b6e69;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: #8fd0c4;
+
+  /* Charts (unused by POC, kept for shadcn compatibility) */
+  --chart-1: #0b6e69;
+  --chart-2: #1d5a9d;
+  --chart-3: #995703;
+  --chart-4: #b33b00;
+  --chart-5: #524dc3;
+}
+
+@theme inline {
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-heading: var(--font-plex-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-selected: var(--selected);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-navy: var(--navy);
+  --color-navy-foreground: var(--navy-foreground);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-tile: var(--success-tile);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-tile: var(--warning-tile);
+  --color-warning-border: var(--warning-border);
+  --color-warning-badge: var(--warning-badge);
+  --color-warning-badge-foreground: var(--warning-badge-foreground);
+  --color-abnormal: var(--abnormal);
+  --color-abnormal-soft: var(--abnormal-soft);
+  --color-abnormal-tile: var(--abnormal-tile);
+  --color-abnormal-border: var(--abnormal-border);
+  --color-destructive: var(--destructive);
+  --color-destructive-solid: var(--destructive-solid);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-tile: var(--destructive-tile);
+  --color-destructive-border: var(--destructive-border);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
+  --color-ai: var(--ai);
+  --color-ai-soft: var(--ai-soft);
+  --color-ai-border: var(--ai-border);
+  --color-ai-accent: var(--ai-accent);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-indicator: var(--sidebar-indicator);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.67);
+  --radius-lg: calc(var(--radius) * 0.83);
+  --radius-xl: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.33);
+  --radius-3xl: calc(var(--radius) * 1.67);
+  --radius-4xl: calc(var(--radius) * 2.2);
+
+  --shadow-card: 0 1px 2px rgb(20 35 42 / 0.04), 0 1px 3px rgb(20 35 42 / 0.03);
+  --shadow-raised: 0 8px 24px rgb(20 35 42 / 0.12), 0 2px 6px rgb(20 35 42 / 0.06);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss02" 1;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--primary-soft);
+  }
+}
+
+@layer components {
+  /* Small uppercase label used for table headers and card section titles. */
+  .eyebrow {
+    @apply text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase;
+  }
+  /* Thin scrollbars inside scroll containers (tables, panels). */
+  .thin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}
