@@ -7,6 +7,8 @@ import type { AiSummary, Animal, HealthCase } from "@/types/domain"
 import { addFollowUpRecord } from "./cases"
 import { appendAudit, canSeeAnimal, clone, currentUser, delay, getDb, notify, requirePermission, userName, write } from "./core"
 import { activeCases, animalAiSummary, caseNextAction, checkInfo, speciesName, type NextAction } from "./derive"
+import { isApiMode } from "./api/config"
+import { countStaying } from "./remote/animals"
 
 export type UnwellStatus = "needs_review" | "open" | "monitoring"
 export type UnwellFilter = "open" | "needs_review" | "last_7_days" | "assigned_to_me"
@@ -283,8 +285,11 @@ export async function getNavCounts(): Promise<{ animals: number; cases: number; 
   const user = currentUser(db)
   const animals = db.animals.filter((a) => a.stayStatus !== "released" && canSeeAnimal(user, a))
   const ids = new Set(animals.map((a) => a.id))
+  // API mode: the Animals badge counts staying animals from `GET /animals?status=staying`.
+  // NParks admins can't read animal stays (403), so their badge shows 0.
+  const animalCount = !isApiMode() ? animals.length : user.role === "admin" ? 0 : await countStaying().catch(() => 0)
   return {
-    animals: animals.length,
+    animals: animalCount,
     cases: db.cases.filter((c) => c.status !== "closed" && ids.has(c.animalId)).length,
     review: db.observations.filter((o) => o.aiStatus === "needs_review" || o.aiStatus === "awaiting_confirmation").length,
   }

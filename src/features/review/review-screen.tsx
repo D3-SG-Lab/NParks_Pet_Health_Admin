@@ -19,6 +19,7 @@ import { getReferenceData } from "@/services/reference"
 import { pluralCount, timeOrDay, waitingLabel } from "../cases/case-helpers"
 import { reasonChip, reporterLabel } from "./review-helpers"
 import { TriagePanel } from "./triage-panel"
+import { MockDataBanner } from "@/components/common/api-banners"
 
 function subLine(item: QueueItem): string {
   const o = item.observation
@@ -71,6 +72,7 @@ function ReviewQueue() {
           ) : null
         }
       />
+      <MockDataBanner what="The AI review queue and triage" />
       {q.error ? (
         <Panel>
           <QueryError error={q.error} onRetry={() => void q.refetch()} title="Couldn’t load the review queue" />

@@ -25,6 +25,7 @@ import { getReferenceData } from "@/services/reference"
 
 import { FollowUpPanel } from "./follow-up-panel"
 import { UNWELL_STATUS, UnwellCards, UnwellTable, type UnwellSortKey } from "./unwell-table"
+import { MockDataBanner } from "@/components/common/api-banners"
 
 const STATUS_RANK = { needs_review: 0, open: 1, monitoring: 2 } as const
 
@@ -124,6 +125,7 @@ export function OperationsDashboard() {
           </>
         }
       />
+      <MockDataBanner what="The operations dashboard (counts, unwell animals, alerts and follow-ups)" />
 
       {q.isError ? (
         <Panel>

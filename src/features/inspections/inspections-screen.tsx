@@ -21,6 +21,8 @@ import type { Session } from "@/types/domain"
 
 import { BoardBlockSection, BoardLegend } from "./session-board"
 import { InspectionSheet } from "./inspection-sheet"
+import { ApiNotices } from "@/components/common/api-banners"
+import { isApiMode } from "@/services/api/config"
 
 const STATUS_LABEL: Record<string, string> = {
   done: "Done",
@@ -78,7 +80,11 @@ export function InspectionsScreen() {
     <div className="space-y-6">
       <PageHeader
         title="Inspections"
-        description="AM/PM checks by kennel · one AM and one PM inspection per animal per day; edits are audited"
+        description={
+          isApiMode()
+            ? "AM/PM checks by kennel · one AM and one PM inspection per animal per day"
+            : "AM/PM checks by kennel · one AM and one PM inspection per animal per day; edits are audited"
+        }
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -94,12 +100,15 @@ export function InspectionsScreen() {
         <div className="w-[176px]">
           <DatePicker value={date} onChange={(d) => setDate(d)} max={today} ariaLabel="Inspection date" />
         </div>
-        {canRecord ? (
+        {/* Reminders need contractor assignments, which the API doesn't provide. */}
+        {canRecord && !isApiMode() ? (
           <Button variant="outline" onClick={() => remind.mutate()} loading={remind.isPending} disabled={date !== today}>
             <Bell /> Remind assignees
           </Button>
         ) : null}
       </div>
+
+      <ApiNotices notices={board?.notices} />
 
       {q.isError ? (
         <Panel>

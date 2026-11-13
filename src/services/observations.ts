@@ -24,6 +24,8 @@ import {
   write,
 } from "./core"
 import { activeCases, speciesName } from "./derive"
+import { isApiMode } from "./api/config"
+import * as remote from "./remote/observations"
 
 export const ROUTING_LABEL: Record<RoutingAction, string> = {
   timeline: "Timeline only",
@@ -39,13 +41,16 @@ export const ROUTING_LABEL: Record<RoutingAction, string> = {
 export interface NewObservationInput {
   text: string
   animalId: string | null
-  media: { kind: "photo" | "video"; caption: string }[]
+  /** `file` is uploaded in API mode (presigned URL); the mock keeps the caption only. */
+  media: { kind: "photo" | "video"; caption: string; file?: File }[]
 }
 
 export interface ObservationResult {
   observation: Observation
   /** True when the current user may confirm the AI routing straight away. */
   canConfirm: boolean
+  /** API mode: processing status reported by the API. */
+  notice?: string
 }
 
 function formatObsId(n: number) {
@@ -123,6 +128,7 @@ export function processObservation(db: Db, obs: Observation): AiResult {
 }
 
 export async function createObservation(input: NewObservationInput): Promise<ObservationResult> {
+  if (isApiMode()) return remote.createObservation(input)
   await delay()
   const db = getDb()
   const actor = requirePermission("record", { what: "Create observation" })
@@ -144,6 +150,7 @@ export async function createObservation(input: NewObservationInput): Promise<Obs
 }
 
 export async function getObservation(id: string): Promise<Observation> {
+  if (isApiMode()) return remote.getObservation(id)
   await delay(120)
   const o = getDb().observations.find((x) => x.id === id)
   if (!o) throw new ApiError("NOT_FOUND", `Observation ${id} was not found.`)
@@ -433,8 +440,16 @@ export async function skipReviewItem(observationId: string): Promise<void> {
   })
 }
 
-/** Search active animals for "Or search another animal…" in triage. */
-export async function searchActiveAnimals(query: string): Promise<{ animal: Animal; speciesName: string }[]> {
+/**
+ * Search active animals: the observation animal picker and "Or search another
+ * animal…" in triage. API mode uses `GET /animals?status=staying&search=` —
+ * except for triage (`local`), because the review queue still runs on demo data.
+ */
+export async function searchActiveAnimals(
+  query: string,
+  source: "default" | "local" = "default"
+): Promise<{ animal: Animal; speciesName: string }[]> {
+  if (isApiMode() && source === "default") return remote.searchActiveAnimals(query)
   await delay(80)
   const db = getDb()
   const user = currentUser(db)

@@ -24,6 +24,7 @@ import type { KennelType } from "@/types/domain"
 
 import type { FrameRenderer } from "./master-data-screen"
 import { FormDialog, InfoBanner, applyApiError } from "./shared"
+import { isApiMode } from "@/services/api/config"
 
 /** "Dog run · small, Dog run · medium, Dog run · large" → "Dog run · S / M / L". */
 export function kennelTypesLabel(types: KennelType[]): string {
@@ -34,6 +35,12 @@ export function kennelTypesLabel(types: KennelType[]): string {
 }
 
 type Editing = { row: SpeciesRow | null } | null
+
+/**
+ * API mode: `/master-data/species` stores a name and an active flag only —
+ * list, create and `PATCH …/status`; there is no update endpoint.
+ */
+const API = isApiMode()
 
 export function SpeciesTab({ frame, onOpenTemplate }: { frame: FrameRenderer; onOpenTemplate: (templateId: string) => void }) {
   const q = useQuery({ queryKey: ["master", "species"], queryFn: listSpecies })
@@ -58,29 +65,35 @@ export function SpeciesTab({ frame, onOpenTemplate }: { frame: FrameRenderer; on
           title="Species"
           actions={
             <span className="text-xs text-muted-foreground">
-              Shown as the Species choice on New Arrival · disabling hides it for new arrivals only
+              {API
+                ? "Pet species master data from the API · switch to activate or deactivate"
+                : "Shown as the Species choice on New Arrival · disabling hides it for new arrivals only"}
             </span>
           }
         />
         <TableScroll>
-          <Table className="min-w-[860px]">
+          <Table className={API ? "min-w-[420px]" : "min-w-[860px]"}>
             <THead>
               <tr>
                 <Th>Species</Th>
-                <Th>Inspection checklist</Th>
-                <Th>Default stay</Th>
-                <Th>Kennel types</Th>
-                <Th align="right">Active animals</Th>
-                <Th align="center">Enabled</Th>
-                <Th align="right">Actions</Th>
+                {API ? null : (
+                  <>
+                    <Th>Inspection checklist</Th>
+                    <Th>Default stay</Th>
+                    <Th>Kennel types</Th>
+                    <Th align="right">Active animals</Th>
+                  </>
+                )}
+                <Th align="center">{API ? "Active" : "Enabled"}</Th>
+                {API ? null : <Th align="right">Actions</Th>}
               </tr>
             </THead>
             <tbody>
               {q.isPending ? (
-                <TableSkeletonRows rows={3} cols={7} />
+                <TableSkeletonRows rows={3} cols={API ? 2 : 7} />
               ) : q.data.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={API ? 2 : 7}>
                     <EmptyState title="No species yet" description="Add the species accepted for quarantine." icon="search" />
                   </td>
                 </tr>
@@ -91,21 +104,25 @@ export function SpeciesTab({ frame, onOpenTemplate }: { frame: FrameRenderer; on
                       <p className="font-semibold text-foreground">{r.species.name}</p>
                       {r.species.description ? <p className="text-xs text-muted-foreground">{r.species.description}</p> : null}
                     </Td>
-                    <Td>
-                      <button
-                        type="button"
-                        className="font-medium text-primary hover:underline"
-                        onClick={() => onOpenTemplate(r.species.checklistTemplateId)}
-                      >
-                        {r.templateName}
-                        {r.templateVersion ? ` v${r.templateVersion}` : " (no live version)"}
-                      </button>
-                    </Td>
-                    <Td>{r.species.defaultStayDays} days</Td>
-                    <Td>{kennelTypesLabel(r.species.kennelTypes)}</Td>
-                    <Td align="right" className="tabular-nums">
-                      {r.activeAnimals}
-                    </Td>
+                    {API ? null : (
+                      <>
+                        <Td>
+                          <button
+                            type="button"
+                            className="font-medium text-primary hover:underline"
+                            onClick={() => onOpenTemplate(r.species.checklistTemplateId)}
+                          >
+                            {r.templateName}
+                            {r.templateVersion ? ` v${r.templateVersion}` : " (no live version)"}
+                          </button>
+                        </Td>
+                        <Td>{r.species.defaultStayDays} days</Td>
+                        <Td>{kennelTypesLabel(r.species.kennelTypes)}</Td>
+                        <Td align="right" className="tabular-nums">
+                          {r.activeAnimals}
+                        </Td>
+                      </>
+                    )}
                     <Td align="center">
                       <Switch
                         checked={r.species.enabled}
@@ -113,11 +130,13 @@ export function SpeciesTab({ frame, onOpenTemplate }: { frame: FrameRenderer; on
                         onCheckedChange={(c) => (c ? toggle.mutate({ id: r.species.id, enabled: true }) : setDisabling(r))}
                       />
                     </Td>
-                    <Td align="right">
-                      <Button variant="outline" size="sm" onClick={() => setEditing({ row: r })}>
-                        Edit
-                      </Button>
-                    </Td>
+                    {API ? null : (
+                      <Td align="right">
+                        <Button variant="outline" size="sm" onClick={() => setEditing({ row: r })}>
+                          Edit
+                        </Button>
+                      </Td>
+                    )}
                   </Tr>
                 ))
               )}
@@ -126,10 +145,13 @@ export function SpeciesTab({ frame, onOpenTemplate }: { frame: FrameRenderer; on
         </TableScroll>
       </Panel>
       <InfoBanner icon={<Info className="mt-0.5 size-4 shrink-0" aria-hidden />}>
-        Species names are also passed to the AI worker for animal matching. Renaming one does not change existing records.
+        {API
+          ? "New arrivals use the animal-stay species (Dog, Cat or Other) defined by the API; this list is the pet species master data."
+          : "Species names are also passed to the AI worker for animal matching. Renaming one does not change existing records."}
       </InfoBanner>
 
-      {editing ? <SpeciesDialog key={editing.row?.species.id ?? "new"} row={editing.row} onClose={() => setEditing(null)} /> : null}
+      {editing && API ? <ApiSpeciesDialog onClose={() => setEditing(null)} /> : null}
+      {editing && !API ? <SpeciesDialog key={editing.row?.species.id ?? "new"} row={editing.row} onClose={() => setEditing(null)} /> : null}
       <ConfirmDialog
         open={disabling !== null}
         onOpenChange={(o) => !o && setDisabling(null)}
@@ -283,6 +305,52 @@ function SpeciesDialog({ row, onClose }: { row: SpeciesRow | null; onClose: () =
           </label>
         )}
       />
+    </FormDialog>
+  )
+}
+
+/** API mode: `POST /master-data/species { name }`. */
+function ApiSpeciesDialog({ onClose }: { onClose: () => void }) {
+  const form = useForm<{ name: string }>({
+    resolver: zodResolver(z.object({ name: z.string().trim().min(1, "Enter the species name.").max(60, "Keep it under 60 characters.") })),
+    defaultValues: { name: "" },
+  })
+  const [formError, setFormError] = useState<string | null>(null)
+  const save = useServiceMutation(
+    (v: { name: string }) =>
+      saveSpecies(null, { name: v.name, description: "", checklistTemplateId: "", defaultStayDays: 0, kennelTypes: [], enabled: true }),
+    {
+      success: (_, v) => `${v.name.trim()} added`,
+      silentError: true,
+      onSuccess: onClose,
+      onError: (e) => setFormError(applyApiError(form, e, ["name"])),
+    }
+  )
+  return (
+    <FormDialog
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title="Add species"
+      description="New species are active straight away."
+      onSubmit={form.handleSubmit((v) => {
+        setFormError(null)
+        save.mutate(v)
+      })}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={save.isPending}>
+            Add species
+          </Button>
+        </>
+      }
+    >
+      <FormError message={formError} />
+      <Field label="Species name" required htmlFor="sp-api-name" error={form.formState.errors.name?.message}>
+        <Input id="sp-api-name" aria-invalid={Boolean(form.formState.errors.name) || undefined} {...form.register("name")} />
+      </Field>
     </FormDialog>
   )
 }

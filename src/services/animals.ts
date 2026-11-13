@@ -43,6 +43,11 @@ import {
   type TimelineType,
 } from "./derive"
 import { createObservationRecord, processObservation } from "./observations"
+import { isApiMode } from "./api/config"
+import * as remote from "./remote/animals"
+import { notInApi } from "./remote/mappers"
+
+export { loadExamDraft, saveExamDraft } from "./remote/animals"
 
 export const ANIMAL_STATUS_LABEL: Record<AnimalHealthStatus, string> = {
   awaiting_exam: "Awaiting exam",
@@ -112,6 +117,7 @@ function checkDue(r: AnimalRow): boolean {
 }
 
 export async function listAnimals(params: AnimalListParams) {
+  if (isApiMode()) return remote.listAnimals(params)
   await delay()
   const db = getDb()
   const user = currentUser(db)
@@ -165,7 +171,16 @@ export async function listAnimals(params: AnimalListParams) {
   const pageSize = params.pageSize ?? PAGE_SIZE
   const total = rows.length
   const page = Math.min(Math.max(1, params.page ?? 1), Math.max(1, Math.ceil(total / pageSize)))
-  return { rows: rows.slice((page - 1) * pageSize, page * pageSize), allRows: rows, total, page, pageSize, tabCounts, chipCounts }
+  return {
+    rows: rows.slice((page - 1) * pageSize, page * pageSize),
+    allRows: rows,
+    total,
+    page,
+    pageSize,
+    tabCounts,
+    chipCounts,
+    notices: [] as string[],
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -187,6 +202,8 @@ export interface AnimalDetail {
   kennel: Kennel | null
   timelineTotal: number
   closeReasonLabel: typeof CLOSE_REASON_LABEL
+  /** Parts of the record the API couldn't load (API mode). */
+  notices?: string[]
 }
 
 function medicationCard(db: Db, animalId: string): MedicationCardItem[] {
@@ -211,6 +228,7 @@ function medicationCard(db: Db, animalId: string): MedicationCardItem[] {
 }
 
 export async function getAnimal(id: string): Promise<AnimalDetail> {
+  if (isApiMode()) return remote.getAnimal(id)
   await delay()
   const db = getDb()
   const a = db.animals.find((x) => x.id === id)
@@ -234,7 +252,11 @@ export async function getAnimal(id: string): Promise<AnimalDetail> {
 
 export type TimelinePeriod = "stay" | "today" | "7d" | "30d"
 
-export async function getTimeline(id: string, params: { type?: TimelineType | "all"; period?: TimelinePeriod; limit?: number } = {}) {
+export async function getTimeline(
+  id: string,
+  params: { type?: TimelineType | "all"; period?: TimelinePeriod; limit?: number } = {}
+): Promise<{ entries: TimelineEntry[]; total: number; notices: string[] }> {
+  if (isApiMode()) return remote.getTimeline(id, params)
   await delay()
   const db = getDb()
   const a = db.animals.find((x) => x.id === id)
@@ -252,7 +274,7 @@ export async function getTimeline(id: string, params: { type?: TimelineType | "a
   let entries: TimelineEntry[] = buildTimeline(db, id).filter((e) => e.at.slice(0, 10) >= from)
   if (params.type && params.type !== "all") entries = entries.filter((e) => e.type === params.type)
   const total = entries.length
-  return { entries: entries.slice(0, params.limit ?? 7), total }
+  return { entries: entries.slice(0, params.limit ?? 7), total, notices: [] }
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +291,8 @@ export interface ArrivalInput {
   microchip: string
   kennelCode: string
   releaseDate: string
+  /** API mode only: `arrivalDate` of `POST /animals` (the mock always uses today). */
+  arrivalDate?: string
 }
 
 export function occupiedKennels(db: Db, exceptAnimalId?: string): Set<string> {
@@ -277,6 +301,7 @@ export function occupiedKennels(db: Db, exceptAnimalId?: string): Set<string> {
 
 /** Kennels offered by the New Arrival picker (out-of-service and cleaning kennels are hidden). */
 export async function availableKennels(speciesId: string | null, exceptAnimalId?: string): Promise<Kennel[]> {
+  if (isApiMode()) return remote.availableKennels()
   await delay(80)
   const db = getDb()
   const today = todayISO()
@@ -307,6 +332,7 @@ function validateArrival(db: Db, input: ArrivalInput, exceptAnimalId?: string) {
 }
 
 export async function createArrival(input: ArrivalInput): Promise<Animal> {
+  if (isApiMode()) return remote.createArrival(input)
   await delay()
   const actor = requirePermission("arrival", { what: "New arrival" })
   return write((db) => {
@@ -375,6 +401,7 @@ export async function completeArrivalExam(
   animalId: string,
   input: ArrivalExamInput
 ): Promise<{ animal: Animal; observationIds: string[] }> {
+  if (isApiMode()) return remote.completeArrivalExam(animalId, input)
   await delay()
   const actor = requirePermission("arrival", { what: "Arrival exam" })
   const result = write((db) => {
@@ -432,6 +459,7 @@ export type AnimalUpdate = Partial<
 >
 
 export async function updateAnimal(id: string, patch: AnimalUpdate): Promise<Animal> {
+  if (isApiMode()) notInApi("Editing an animal profile")
   await delay()
   const actor = requirePermission("arrival", { what: "Edit animal profile" })
   return write((db) => {
@@ -480,6 +508,8 @@ export async function updateAnimal(id: string, patch: AnimalUpdate): Promise<Ani
 }
 
 export async function releaseAnimal(id: string, note: string): Promise<void> {
+  // API: PATCH /animals/{id}/status { status: "released", releaseDate } — the note is not stored.
+  if (isApiMode()) return remote.releaseAnimal(id)
   await delay()
   const actor = requirePermission("arrival", { what: "Release animal" })
   write((db) => {
@@ -555,6 +585,7 @@ export interface SearchResult {
 }
 
 export async function globalSearch(query: string): Promise<SearchResult[]> {
+  if (isApiMode()) return remote.globalSearch(query)
   await delay(120)
   const db = getDb()
   const user = currentUser(db)

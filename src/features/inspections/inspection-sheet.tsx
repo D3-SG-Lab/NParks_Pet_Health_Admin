@@ -203,7 +203,7 @@ function InspectionFormBody({
         {readOnly ? (
           <div className="mb-4 flex items-start gap-2 rounded-xl border border-border bg-subtle px-3.5 py-2.5 text-[13px] text-muted-foreground">
             <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
-            Read only — your role or kennel scope doesn’t include recording inspections for {tile.kennel.code}.
+            {form.readOnlyReason ?? `Read only — your role or kennel scope doesn’t include recording inspections for ${tile.kennel.code}.`}
           </div>
         ) : null}
 
@@ -378,7 +378,7 @@ export function InspectionSheet({
                 tile={tile}
                 date={date}
                 session={session}
-                readOnly={!canRecord}
+                readOnly={!canRecord || Boolean(q.data.readOnlyReason)}
                 onDone={onClose}
               />
             )}

@@ -15,6 +15,8 @@ import { listAdministrations, listDueToday, listSchedules, recordMedicationExpor
 import { AdministrationLogTab } from "./administration-log"
 import { DueTodayTab } from "./due-today"
 import { SchedulesTab } from "./schedules-tab"
+import { MockDataBanner } from "@/components/common/api-banners"
+import { isApiMode } from "@/services/api/config"
 
 type Tab = "due" | "schedules" | "log"
 
@@ -55,9 +57,12 @@ export function MedicationScreen() {
         title="Medication"
         description="Schedules and administrations for medication and supplements · time and officer are captured automatically"
         actions={
-          <Button variant="outline" onClick={() => exportLog.mutate()} loading={exportLog.isPending}>
-            <Download /> Export log
-          </Button>
+          // The administration log is demo data in API mode (no history endpoint), so no export.
+          isApiMode() ? null : (
+            <Button variant="outline" onClick={() => exportLog.mutate()} loading={exportLog.isPending}>
+              <Download /> Export log
+            </Button>
+          )
         }
       />
       <PageTabs
@@ -69,7 +74,10 @@ export function MedicationScreen() {
           { value: "log", label: "Administration log" },
         ]}
       />
-      <div role="tabpanel">{tab === "due" ? <DueTodayTab /> : tab === "schedules" ? <SchedulesTab /> : <AdministrationLogTab />}</div>
+      <div role="tabpanel" className="space-y-4">
+        {tab === "due" ? null : <MockDataBanner what="Medication schedules and the administration history" />}
+        {tab === "due" ? <DueTodayTab /> : tab === "schedules" ? <SchedulesTab /> : <AdministrationLogTab />}
+      </div>
     </div>
   )
 }

@@ -3,22 +3,32 @@ import { format, formatDistanceStrict } from "date-fns"
 import { now, parseLocal, toISODate } from "@/lib/clock"
 import type { ISODate, ISODateTime } from "@/types/domain"
 
+/**
+ * Formats a local ISO date/time. Records from the real API can leave dates
+ * empty (e.g. no planned release date); those render as "—" instead of throwing.
+ */
+function safeFormat(v: string | null | undefined, pattern: string): string {
+  if (!v) return "—"
+  const d = parseLocal(v)
+  return Number.isNaN(d.getTime()) ? "—" : format(d, pattern)
+}
+
 /** 21/10 */
-export const fmtDayMonth = (v: ISODate | ISODateTime) => format(parseLocal(v), "dd/MM")
+export const fmtDayMonth = (v: ISODate | ISODateTime) => safeFormat(v, "dd/MM")
 /** 21/10/2026 */
-export const fmtDate = (v: ISODate | ISODateTime) => format(parseLocal(v), "dd/MM/yyyy")
+export const fmtDate = (v: ISODate | ISODateTime) => safeFormat(v, "dd/MM/yyyy")
 /** 21/10/2026 16:00 */
-export const fmtDateTime = (v: ISODateTime) => format(parseLocal(v), "dd/MM/yyyy HH:mm")
+export const fmtDateTime = (v: ISODateTime) => safeFormat(v, "dd/MM/yyyy HH:mm")
 /** 21/10 16:21 */
-export const fmtShortDateTime = (v: ISODateTime) => format(parseLocal(v), "dd/MM HH:mm")
+export const fmtShortDateTime = (v: ISODateTime) => safeFormat(v, "dd/MM HH:mm")
 /** 16:21 */
-export const fmtTime = (v: ISODateTime) => format(parseLocal(v), "HH:mm")
+export const fmtTime = (v: ISODateTime) => safeFormat(v, "HH:mm")
 /** 21/10/2026 16:21:04 */
-export const fmtFull = (v: ISODateTime) => format(parseLocal(v), "dd/MM/yyyy HH:mm:ss")
+export const fmtFull = (v: ISODateTime) => safeFormat(v, "dd/MM/yyyy HH:mm:ss")
 /** Wed 21 Oct 2026 */
 export const fmtLongDay = (v: Date) => format(v, "EEE d MMM yyyy")
 /** 21 Oct */
-export const fmtDayShort = (v: ISODate | ISODateTime) => format(parseLocal(v), "d MMM")
+export const fmtDayShort = (v: ISODate | ISODateTime) => safeFormat(v, "d MMM")
 
 /** "2 min ago", "3 h ago", "yesterday" relative to the demo clock. */
 export function fmtRelative(v: ISODateTime): string {
@@ -62,6 +72,7 @@ export function ageYears(dob: ISODate, at: Date = now()): number {
 }
 
 export function fmtAge(dob: ISODate): string {
+  if (!dob) return "age unknown"
   const y = ageYears(dob)
   if (y >= 1) return `${y} y`
   const b = parseLocal(dob)

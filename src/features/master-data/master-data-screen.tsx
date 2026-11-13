@@ -13,6 +13,7 @@ import { RulesTab } from "./rules-tab"
 import { SpeciesTab } from "./species-tab"
 import { TaxonomyTab } from "./taxonomy-tab"
 import { TemplatesTab } from "./templates-tab"
+import { MockDataBanner } from "@/components/common/api-banners"
 
 export type MasterTab = "kennels" | "species" | "templates" | "taxonomy" | "glossary" | "rules"
 
@@ -24,6 +25,14 @@ const TABS: { value: MasterTab; label: string }[] = [
   { value: "glossary", label: "AQC glossary" },
   { value: "rules", label: "Notification rules" },
 ]
+
+/** Tabs without an API endpoint (they keep running on demo data in API mode). */
+const MOCK_TAB_LABEL: Partial<Record<MasterTab, string>> = {
+  templates: "Checklist templates",
+  taxonomy: "The symptom taxonomy",
+  glossary: "The AQC glossary",
+  rules: "Notification rules",
+}
 
 /** Renders the page header (with tab-specific actions), the tab bar and the tab body. */
 export type FrameRenderer = (actions: ReactNode, body: ReactNode) => ReactNode
@@ -57,6 +66,7 @@ function MasterData() {
         actions={actions}
       />
       <PageTabs tabs={TABS} value={tab} onChange={(t) => go(t)} />
+      {MOCK_TAB_LABEL[tab] ? <MockDataBanner what={MOCK_TAB_LABEL[tab]} /> : null}
       {body}
     </div>
   )

@@ -21,8 +21,12 @@ import { useServiceMutation } from "@/lib/query"
 import { getReferenceData } from "@/services/reference"
 import { createUser, resendInvitation, updateUser } from "@/services/users"
 import type { IdentityProvider, Role, User } from "@/types/domain"
+import { isApiMode } from "@/services/api/config"
 
 const OFFICER_ROLES: Role[] = ["officer", "vet", "supervisor", "auditor", "admin"]
+
+/** API mode: `POST /admin/nparks-admins` creates NParks admin accounts only (fullName + workEmail). */
+const API = isApiMode()
 
 const schema = z
   .object({
@@ -74,10 +78,10 @@ function UserForm({ user, onDone }: { user: User | null; onDone: () => void }) {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      idp: user?.idp ?? "contractor",
+      idp: user?.idp ?? (API ? "officer" : "contractor"),
       email: user?.email ?? "",
       name: user?.name ?? "",
-      role: user?.role ?? "contractor",
+      role: user?.role ?? (API ? "admin" : "contractor"),
       kennelScope: user?.kennelScope ?? [],
       sendInvitation: true,
     },
@@ -122,7 +126,7 @@ function UserForm({ user, onDone }: { user: User | null; onDone: () => void }) {
     if (formState.errors.email) void form.trigger("email")
   }
 
-  const roles: Role[] = idp === "contractor" ? ["contractor"] : OFFICER_ROLES
+  const roles: Role[] = API ? ["admin"] : idp === "contractor" ? ["contractor"] : OFFICER_ROLES
   const blocks = ref?.blocks ?? []
   const available = blocks.filter((b) => !scope.includes(b.code))
   const pending = create.isPending || update.isPending
@@ -132,23 +136,29 @@ function UserForm({ user, onDone }: { user: User | null; onDone: () => void }) {
       <SheetHeader className="border-b border-border px-5 py-4">
         <SheetTitle className="text-lg">{editing ? `Edit ${user?.name}` : "Add user"}</SheetTitle>
         <SheetDescription>
-          {editing ? "Changes take effect immediately and are audited." : "Users sign in through the Officer IdP or the Contractor IdP."}
+          {editing
+            ? "Changes take effect immediately and are audited."
+            : API
+              ? "Creates an NParks admin account. It stays inactive until the admin first signs in."
+              : "Users sign in through the Officer IdP or the Contractor IdP."}
         </SheetDescription>
       </SheetHeader>
 
       <div className="thin-scroll flex-1 space-y-5 overflow-y-auto px-5 py-5">
-        <Field label="Identity provider" required>
-          <Segmented
-            ariaLabel="Identity provider"
-            className="w-full"
-            value={idp}
-            onChange={changeIdp}
-            options={[
-              { value: "officer", label: "Officer IdP" },
-              { value: "contractor", label: "Contractor IdP" },
-            ]}
-          />
-        </Field>
+        {API ? null : (
+          <Field label="Identity provider" required>
+            <Segmented
+              ariaLabel="Identity provider"
+              className="w-full"
+              value={idp}
+              onChange={changeIdp}
+              options={[
+                { value: "officer", label: "Officer IdP" },
+                { value: "contractor", label: "Contractor IdP" },
+              ]}
+            />
+          </Field>
+        )}
 
         <Field
           label="Work email"
@@ -253,7 +263,7 @@ function UserForm({ user, onDone }: { user: User | null; onDone: () => void }) {
           </Field>
         ) : null}
 
-        {!editing ? (
+        {API ? null : !editing ? (
           <Controller
             control={control}
             name="sendInvitation"

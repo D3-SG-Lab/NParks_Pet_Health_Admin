@@ -9,7 +9,13 @@ import { resetDb } from "@/lib/mock/db"
 import { useSessionStore } from "@/stores/session-store"
 import type { IdentityProvider, User } from "@/types/domain"
 
+import { isApiMode } from "./api/config"
+import { apiSignOut, hasApiSession, registerSessionExpiry } from "./remote/auth"
 import { appendAudit, clone, delay, getDb, idpLabel, write } from "./core"
+
+export { completeOidcSignIn, devSignIn, hasApiSession, startOidcSignIn, type DevSignInInput } from "./remote/auth"
+
+if (isApiMode()) registerSessionExpiry()
 
 export async function listSignInAccounts(idp: IdentityProvider): Promise<User[]> {
   await delay(120)
@@ -61,6 +67,7 @@ export async function signOut(reason: "user" | "idle" = "user"): Promise<void> {
         })
     })
   }
+  if (isApiMode()) await apiSignOut()
   useSessionStore.getState().clear()
 }
 
@@ -68,6 +75,8 @@ export async function signOut(reason: "user" | "idle" = "user"): Promise<void> {
 export function sessionUser(): User | null {
   const id = useSessionStore.getState().userId
   if (!id) return null
+  // API mode: no usable session without an access token.
+  if (isApiMode() && !hasApiSession()) return null
   const u = getDb().users.find((x) => x.id === id)
   return u && u.status !== "disabled" ? clone(u) : null
 }

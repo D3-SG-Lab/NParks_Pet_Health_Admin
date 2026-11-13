@@ -1,0 +1,23 @@
+/** Countries offered on the arrival form (common AQC import origins). */
+export const COUNTRIES = [
+  "Australia",
+  "Canada",
+  "China",
+  "France",
+  "Germany",
+  "Hong Kong",
+  "Indonesia",
+  "Japan",
+  "Malaysia",
+  "Netherlands",
+  "New Zealand",
+  "Philippines",
+  "South Africa",
+  "South Korea",
+  "Taiwan",
+  "Thailand",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "Vietnam",
+]

@@ -9,9 +9,11 @@ export const APP_CONFIG = {
   /**
    * The mock data set is anchored to the design reference day (Wed 21 Oct 2026,
    * 08:42, AM session). The demo clock starts here and advances in real time.
-   * Set to "real" to use the browser clock instead.
+   * Set to "real" to use the browser clock instead. With a real API
+   * (NEXT_PUBLIC_API_BASE_URL) the browser clock is always used, because API
+   * records (inspection dates, dose slots) are dated in real time.
    */
-  demoNow: process.env.NEXT_PUBLIC_DEMO_NOW ?? "2026-10-21T08:42:00",
+  demoNow: process.env.NEXT_PUBLIC_API_BASE_URL ? "real" : (process.env.NEXT_PUBLIC_DEMO_NOW ?? "2026-10-21T08:42:00"),
   /** Simulated API latency in ms (mock service layer). */
   mockLatencyMs: Number(process.env.NEXT_PUBLIC_MOCK_LATENCY_MS ?? 280),
   /** Base URL of the real API — when empty, the in-browser mock service layer is used. */

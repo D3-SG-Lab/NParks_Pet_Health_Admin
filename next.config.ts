@@ -1,7 +1,11 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
+  // A separate output folder lets the API-mode e2e build (.next-api) sit next to the normal one.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   cacheComponents: true,
+  // The browser calls the same-origin /backend path; src/app/backend/[...path]/route.ts
+  // forwards it to the API (which sends no CORS headers) and follows redirects server-side.
   partialPrefetching: true,
   experimental: {
     instantInsights: {

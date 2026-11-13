@@ -34,11 +34,13 @@ import { fmtShortDateTime } from "@/lib/format"
 import { useServiceMutation } from "@/lib/query"
 import { ROLE_TONE, USER_STATUS } from "@/lib/status"
 import { cn } from "@/lib/utils"
-import { listUsers, scopeLabel, setUserStatus, type UserQuery } from "@/services/users"
+import { deleteUser, listUsers, scopeLabel, setUserStatus, type UserQuery } from "@/services/users"
 import type { IdentityProvider, Role, User } from "@/types/domain"
 
 import { PermissionMatrix } from "./permission-matrix"
 import { UserDrawer } from "./user-drawer"
+import { ApiNotices } from "@/components/common/api-banners"
+import { isApiMode } from "@/services/api/config"
 
 type SortKey = "name" | "lastLogin" | "role"
 
@@ -69,6 +71,11 @@ function UsersAndRoles() {
     placeholderData: keepPreviousData,
   })
 
+  const [deleting, setDeleting] = useState<User | null>(null)
+  const remove = useServiceMutation((u: User) => deleteUser(u.id), {
+    success: (_, u) => `${u.name} deleted`,
+    onSettled: () => setDeleting(null),
+  })
   const toggle = useServiceMutation((u: User) => setUserStatus(u.id, u.status === "disabled" ? "active" : "disabled"), {
     success: (_, u) => (u.status === "disabled" ? `${u.name} enabled` : `${u.name} disabled · access blocked immediately`),
     onSettled: () => setConfirm(null),
@@ -89,13 +96,25 @@ function UsersAndRoles() {
     <div className="space-y-5">
       <PageHeader
         title="Users & roles"
-        description="Users sign in through the Officer IdP or the Contractor IdP. Changes take effect immediately and are audited."
+        description={
+          isApiMode()
+            ? "NParks admin accounts from the API. Changes take effect immediately."
+            : "Users sign in through the Officer IdP or the Contractor IdP. Changes take effect immediately and are audited."
+        }
         actions={
           <Button size="lg" onClick={() => setDrawer({ open: true, user: null })}>
             <Plus /> Add user
           </Button>
         }
       />
+
+      {isApiMode() ? (
+        <ApiNotices
+          notices={[
+            "The API manages NParks admin accounts only. AQC staff accounts (officers, supervisors, vets, contractors) and auditors have no endpoint, so they aren’t listed and can’t be edited here.",
+          ]}
+        />
+      ) : null}
 
       <Panel className="overflow-hidden">
         <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center">
@@ -212,14 +231,27 @@ function UsersAndRoles() {
                       </Td>
                       <Td align="right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setDrawer({ open: true, user: u })}
-                            aria-label={`Edit ${u.name}`}
-                          >
-                            Edit
-                          </Button>
+                          {isApiMode() ? (
+                            // The API can delete (soft-delete) admin accounts but not edit them.
+                            <Button
+                              variant="destructive-outline"
+                              size="sm"
+                              disabled={u.id === me.id}
+                              onClick={() => setDeleting(u)}
+                              aria-label={`Delete ${u.name}`}
+                            >
+                              Delete
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDrawer({ open: true, user: u })}
+                              aria-label={`Edit ${u.name}`}
+                            >
+                              Edit
+                            </Button>
+                          )}
                           <Button
                             variant={disabled ? "soft" : "outline"}
                             size="sm"
@@ -249,6 +281,17 @@ function UsersAndRoles() {
       <PermissionMatrix />
 
       <UserDrawer open={drawer.open} user={drawer.user} onOpenChange={(open) => setDrawer((d) => ({ ...d, open }))} />
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title={`Delete ${deleting?.name}?`}
+        description="The NParks admin account is removed (soft delete) and can no longer sign in."
+        confirmLabel="Delete account"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => deleting && remove.mutate(deleting)}
+      />
 
       <ConfirmDialog
         open={Boolean(confirm)}

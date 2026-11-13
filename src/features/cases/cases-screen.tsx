@@ -19,6 +19,7 @@ import { listCases, recordCaseExport, type CaseFilter } from "@/services/cases"
 
 import { CaseDetailPanel } from "./case-detail"
 import { CaseList } from "./case-list"
+import { MockDataBanner } from "@/components/common/api-banners"
 
 /** Health cases workbench — list + detail split view (FE-015, FE-016; Admin_Design.pdf p.4). */
 export function CasesScreen() {
@@ -85,6 +86,7 @@ export function CasesScreen() {
           </Button>
         }
       />
+      <MockDataBanner what="Health cases" />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
         <Panel className={paramId ? "hidden overflow-hidden lg:block" : "overflow-hidden"}>
           <CaseList

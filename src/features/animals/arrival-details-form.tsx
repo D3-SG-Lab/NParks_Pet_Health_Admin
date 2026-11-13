@@ -18,10 +18,16 @@ import { isApiError } from "@/lib/errors"
 import { fmtMicrochip } from "@/lib/format"
 import { useServiceMutation } from "@/lib/query"
 import { availableKennels, createArrival } from "@/services/animals"
-import { getReferenceData } from "@/services/reference"
+import { isApiMode } from "@/services/api/config"
+import { getReferenceData, listCountries } from "@/services/reference"
 import type { Animal } from "@/types/domain"
 
-import { COUNTRIES } from "./animal-bits"
+/**
+ * API mode follows `POST /animals`: species is Dog | Cat | Other, sex may be
+ * Unknown, origin is an ISO country code, and the stay takes an arrival date.
+ * Breed and planned release date have no API field, so they are not shown.
+ */
+const API = isApiMode()
 
 /** Field rules mirror the service validation (BE-009 data dictionary). */
 const schema = z
@@ -29,26 +35,46 @@ const schema = z
     name: z.string().trim().min(1, "Enter the pet name.").max(40, "Keep the name under 40 characters."),
     speciesId: z.string().min(1, "Pick a species."),
     breed: z.string().trim().max(60, "Keep the breed under 60 characters."),
-    sex: z.enum(["M", "F"], { message: "Pick the sex." }),
-    dateOfBirth: z.string().min(1, "Enter the date of birth."),
+    sex: z.enum(["M", "F", "U"], { message: "Pick the sex." }),
+    // Optional in the API (`dateOfBirth` may be null); required by the mock's data dictionary.
+    dateOfBirth: API ? z.string() : z.string().min(1, "Enter the date of birth."),
     origin: z.string().min(1, "Pick the country of origin."),
     microchip: z
       .string()
       .transform((v) => v.replace(/\s/g, ""))
       .pipe(z.string().regex(/^\d{15}$/, "Microchip must be 15 digits.")),
     kennelCode: z.string().min(1, "Pick a kennel or room."),
-    releaseDate: z.string().min(1, "Enter the release date."),
+    releaseDate: z.string(),
+    arrivalDate: z.string(),
   })
   .superRefine((v, ctx) => {
     const today = todayISO()
     if (v.dateOfBirth && v.dateOfBirth >= today)
       ctx.addIssue({ code: "custom", path: ["dateOfBirth"], message: "Date of birth must be in the past." })
-    if (v.releaseDate && v.releaseDate <= today)
+    if (API) {
+      if (!v.arrivalDate) ctx.addIssue({ code: "custom", path: ["arrivalDate"], message: "Enter the arrival date." })
+      else if (v.arrivalDate > today)
+        ctx.addIssue({ code: "custom", path: ["arrivalDate"], message: "Arrival date can’t be in the future." })
+      return
+    }
+    if (!v.releaseDate) ctx.addIssue({ code: "custom", path: ["releaseDate"], message: "Enter the release date." })
+    else if (v.releaseDate <= today)
       ctx.addIssue({ code: "custom", path: ["releaseDate"], message: "Release date must be after today’s arrival." })
   })
 type FormInput = z.input<typeof schema>
 type FormValues = z.output<typeof schema>
-const FIELDS = ["name", "speciesId", "breed", "sex", "dateOfBirth", "origin", "microchip", "kennelCode", "releaseDate"] as const
+const FIELDS = [
+  "name",
+  "speciesId",
+  "breed",
+  "sex",
+  "dateOfBirth",
+  "origin",
+  "microchip",
+  "kennelCode",
+  "releaseDate",
+  "arrivalDate",
+] as const
 
 const EMPTY: FormInput = {
   name: "",
@@ -60,6 +86,7 @@ const EMPTY: FormInput = {
   microchip: "",
   kennelCode: "",
   releaseDate: "",
+  arrivalDate: "",
 }
 
 function readDraft(key: string): FormInput | null {
@@ -86,8 +113,12 @@ export function ArrivalDetailsForm({
 }) {
   const draftKey = `aqc-arrival-draft-${userId}`
   const [restored, setRestored] = useState<FormInput | null>(() => readDraft(draftKey))
-  const form = useForm<FormInput, unknown, FormValues>({ resolver: zodResolver(schema), defaultValues: restored ?? EMPTY })
+  const form = useForm<FormInput, unknown, FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: restored ?? { ...EMPTY, arrivalDate: API ? todayISO() : "" },
+  })
   const ref = useQuery({ queryKey: ["reference"], queryFn: getReferenceData })
+  const countries = useQuery({ queryKey: ["countries"], queryFn: listCountries, staleTime: 60 * 60_000 })
   const speciesId = useWatch({ control: form.control, name: "speciesId" })
   const values = useWatch({ control: form.control })
   const kennels = useQuery({
@@ -166,7 +197,7 @@ export function ArrivalDetailsForm({
                   field.onChange(v)
                   form.setValue("kennelCode", "")
                   const s = species.find((x) => x.id === v)
-                  if (s && !form.getValues("releaseDate")) form.setValue("releaseDate", addDays(todayISO(), s.defaultStayDays))
+                  if (!API && s && !form.getValues("releaseDate")) form.setValue("releaseDate", addDays(todayISO(), s.defaultStayDays))
                 }}
               >
                 <SelectTrigger className="w-full" aria-label="Species" aria-invalid={Boolean(e.speciesId)}>
@@ -184,9 +215,11 @@ export function ArrivalDetailsForm({
             )}
           />
         </Field>
-        <Field label="Breed" htmlFor="ar-breed" error={e.breed?.message}>
-          <Input id="ar-breed" {...form.register("breed")} />
-        </Field>
+        {API ? null : (
+          <Field label="Breed" htmlFor="ar-breed" error={e.breed?.message}>
+            <Input id="ar-breed" {...form.register("breed")} />
+          </Field>
+        )}
         <Field label="Sex" required error={e.sex?.message}>
           <Controller
             control={form.control}
@@ -200,12 +233,13 @@ export function ArrivalDetailsForm({
                 options={[
                   { value: "F", label: "Female" },
                   { value: "M", label: "Male" },
+                  ...(API ? [{ value: "U" as const, label: "Unknown" }] : []),
                 ]}
               />
             )}
           />
         </Field>
-        <Field label="Date of birth" required error={e.dateOfBirth?.message}>
+        <Field label="Date of birth" required={!API} error={e.dateOfBirth?.message}>
           <Controller
             control={form.control}
             name="dateOfBirth"
@@ -230,11 +264,15 @@ export function ArrivalDetailsForm({
                   <SelectValue placeholder="Choose country" />
                 </SelectTrigger>
                 <SelectContent>
-                  {COUNTRIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
+                  {countries.isError ? (
+                    <div className="px-3 py-2 text-sm text-destructive">Couldn’t load countries: {countries.error.message}</div>
+                  ) : (
+                    (countries.data ?? []).map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             )}
@@ -268,7 +306,13 @@ export function ArrivalDetailsForm({
           label="Kennel / room"
           required
           error={e.kennelCode?.message}
-          hint={speciesId ? "Vacant kennels for this species. Out-of-service kennels are hidden." : "Pick a species first."}
+          hint={
+            !speciesId
+              ? "Pick a species first."
+              : API
+                ? "Active kennels without a staying animal."
+                : "Vacant kennels for this species. Out-of-service kennels are hidden."
+          }
         >
           <Controller
             control={form.control}
@@ -279,12 +323,14 @@ export function ArrivalDetailsForm({
                   <SelectValue placeholder={kennels.isFetching ? "Loading…" : "Choose kennel"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(kennels.data ?? []).length === 0 ? (
+                  {kennels.isError ? (
+                    <div className="px-3 py-2 text-sm text-destructive">Couldn’t load kennels: {kennels.error.message}</div>
+                  ) : (kennels.data ?? []).length === 0 ? (
                     <div className="px-3 py-2 text-sm text-muted-foreground">No vacant kennel takes this species.</div>
                   ) : (
                     (kennels.data ?? []).map((k) => (
                       <SelectItem key={k.code} value={k.code}>
-                        {k.code} · {k.type}
+                        {k.code} · {API ? k.blockCode : k.type}
                       </SelectItem>
                     ))
                   )}
@@ -293,21 +339,39 @@ export function ArrivalDetailsForm({
             )}
           />
         </Field>
-        <Field label="Release date" required error={e.releaseDate?.message} hint="Defaults to the species’ standard stay.">
-          <Controller
-            control={form.control}
-            name="releaseDate"
-            render={({ field }) => (
-              <DatePicker
-                value={field.value}
-                onChange={field.onChange}
-                min={addDays(todayISO(), 1)}
-                invalid={Boolean(e.releaseDate)}
-                ariaLabel="Release date"
-              />
-            )}
-          />
-        </Field>
+        {API ? (
+          <Field label="Arrival date" required error={e.arrivalDate?.message}>
+            <Controller
+              control={form.control}
+              name="arrivalDate"
+              render={({ field }) => (
+                <DatePicker
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  max={todayISO()}
+                  invalid={Boolean(e.arrivalDate)}
+                  ariaLabel="Arrival date"
+                />
+              )}
+            />
+          </Field>
+        ) : (
+          <Field label="Release date" required error={e.releaseDate?.message} hint="Defaults to the species’ standard stay.">
+            <Controller
+              control={form.control}
+              name="releaseDate"
+              render={({ field }) => (
+                <DatePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  min={addDays(todayISO(), 1)}
+                  invalid={Boolean(e.releaseDate)}
+                  ariaLabel="Release date"
+                />
+              )}
+            />
+          </Field>
+        )}
       </div>
 
       <FormError message={e.root?.message} />

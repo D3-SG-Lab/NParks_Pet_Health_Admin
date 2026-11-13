@@ -13,11 +13,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "test:e2e": "playwright test"
+    "test:e2e": "NEXT_DIST_DIR=.next-mock NEXT_PUBLIC_API_BASE_URL= npm run build && playwright test",
+    "mock:api": "node mock-api/server.mjs",
+    "test:e2e:api": "NEXT_DIST_DIR=.next-api NEXT_PUBLIC_API_BASE_URL=http://localhost:7999 NEXT_PUBLIC_ENABLE_OIDC_LOGIN=true npm run build && playwright test -c playwright.api.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.2",
     "@tanstack/react-query": "^5.105.3",
+    "axios": "^1.13.2",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.5.2",

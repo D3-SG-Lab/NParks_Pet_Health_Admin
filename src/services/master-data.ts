@@ -23,6 +23,9 @@ import type {
 } from "@/types/domain"
 
 import { appendAudit, clone, currentUser, delay, getDb, nextId, requirePermission, write } from "./core"
+import { isApiMode } from "./api/config"
+import * as remote from "./remote/master-data"
+import { notInApi } from "./remote/mappers"
 
 export const KENNEL_TYPES: KennelType[] = ["Cattery suite", "Dog run · small", "Dog run · medium", "Dog run · large", "Isolation room"]
 export const KENNEL_STATUS_LABEL: Record<KennelStatus, string> = {
@@ -59,6 +62,7 @@ export interface KennelRow {
 }
 
 export async function listKennelBlocks(): Promise<BlockSummary[]> {
+  if (isApiMode()) return remote.listKennelBlocks()
   await delay()
   admin("Master data")
   const db = getDb()
@@ -73,7 +77,10 @@ export async function listKennelBlocks(): Promise<BlockSummary[]> {
   })
 }
 
-export async function listKennels(blockCode: string): Promise<{ rows: KennelRow[]; contractors: { name: string; disabled: boolean }[] }> {
+export async function listKennels(
+  blockCode: string
+): Promise<{ rows: KennelRow[]; contractors: { name: string; disabled: boolean }[]; notices?: string[] }> {
+  if (isApiMode()) return remote.listKennels(blockCode)
   await delay()
   admin("Master data")
   const db = getDb()
@@ -88,6 +95,7 @@ export async function listKennels(blockCode: string): Promise<{ rows: KennelRow[
 }
 
 export async function createBlock(input: { code: string; name: string; kind: KennelBlock["kind"] }): Promise<void> {
+  if (isApiMode()) notInApi("Adding a kennel block")
   await delay()
   const actor = admin("Add kennel block")
   const code = input.code.trim().toUpperCase()
@@ -130,6 +138,7 @@ export async function suggestKennelCode(blockCode: string): Promise<string> {
 }
 
 export async function createKennel(input: KennelInput): Promise<void> {
+  if (isApiMode()) notInApi("Adding a kennel")
   await delay()
   const actor = admin("Add kennel")
   validateKennel(input)
@@ -148,6 +157,7 @@ export async function createKennel(input: KennelInput): Promise<void> {
 }
 
 export async function updateKennel(originalCode: string, input: KennelInput): Promise<void> {
+  if (isApiMode()) notInApi("Editing a kennel")
   await delay()
   const actor = admin("Edit kennel")
   validateKennel(input)
@@ -177,6 +187,7 @@ export async function updateKennel(originalCode: string, input: KennelInput): Pr
 
 /** CSV columns: code,type,species (semicolon separated ids),status */
 export async function importKennels(rows: string[][]): Promise<{ created: number; updated: number; errors: string[] }> {
+  if (isApiMode()) notInApi("Importing kennels")
   await delay()
   const actor = admin("Import kennels")
   const errors: string[] = []
@@ -256,6 +267,7 @@ export interface SpeciesRow {
 }
 
 export async function listSpecies(): Promise<SpeciesRow[]> {
+  if (isApiMode()) return remote.listSpecies()
   await delay()
   admin("Master data")
   const db = getDb()
@@ -274,6 +286,8 @@ export async function listSpecies(): Promise<SpeciesRow[]> {
 export type SpeciesInput = Omit<Species, "id">
 
 export async function saveSpecies(id: string | null, input: SpeciesInput): Promise<void> {
+  // API: POST /master-data/species { name } only; there is no update endpoint.
+  if (isApiMode()) return id ? notInApi("Editing a species") : remote.createSpecies(input.name)
   await delay()
   const actor = admin(id ? "Edit species" : "Add species")
   if (!input.name.trim()) throw new ApiError("VALIDATION", "Enter the species name.", "name")
@@ -315,6 +329,7 @@ export async function saveSpecies(id: string | null, input: SpeciesInput): Promi
 }
 
 export async function setSpeciesEnabled(id: string, enabled: boolean): Promise<void> {
+  if (isApiMode()) return remote.setSpeciesEnabled(id, enabled)
   await delay(160)
   const actor = admin("Enable species")
   write((db) => {

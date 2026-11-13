@@ -5,6 +5,12 @@ import { ApiError } from "@/lib/errors"
 import type { IdentityProvider, Role, User, UserStatus } from "@/types/domain"
 
 import { appendAudit, clone, delay, getDb, idpLabel, requirePermission, write } from "./core"
+import { isApiMode } from "./api/config"
+import * as remote from "./remote/users"
+import { notInApi } from "./remote/mappers"
+
+/** API mode only: soft-deletes an NParks admin account (`DELETE /admin/nparks-admins/{id}`). */
+export const deleteUser = (id: string) => remote.deleteUser(id)
 
 export interface UserQuery {
   search?: string
@@ -28,6 +34,7 @@ export function scopeLabel(u: Pick<User, "role" | "kennelScope">): string {
 }
 
 export async function listUsers(q: UserQuery) {
+  if (isApiMode()) return remote.listUsers(q)
   await delay()
   requirePermission("admin", { what: "Users & roles" })
   const db = getDb()
@@ -94,6 +101,7 @@ function validate(input: UserInput, exceptId?: string) {
 }
 
 export async function createUser(input: UserInput): Promise<User> {
+  if (isApiMode()) return remote.createUser(input)
   await delay()
   const actor = requirePermission("admin", { what: "Add user" })
   const email = validate(input)
@@ -128,6 +136,7 @@ export async function createUser(input: UserInput): Promise<User> {
 }
 
 export async function updateUser(id: string, input: Omit<UserInput, "sendInvitation">): Promise<User> {
+  if (isApiMode()) notInApi("Editing a user")
   await delay()
   const actor = requirePermission("admin", { what: "Edit user" })
   const email = validate({ ...input, sendInvitation: false }, id)
@@ -156,6 +165,7 @@ export async function updateUser(id: string, input: Omit<UserInput, "sendInvitat
 
 /** Disabling a user blocks API access immediately (BE-007). */
 export async function setUserStatus(id: string, status: Exclude<UserStatus, "invited">): Promise<void> {
+  if (isApiMode()) return remote.setUserStatus(id, status)
   await delay()
   const actor = requirePermission("admin", { what: status === "disabled" ? "Disable user" : "Enable user" })
   write((db) => {
@@ -177,6 +187,7 @@ export async function setUserStatus(id: string, status: Exclude<UserStatus, "inv
 }
 
 export async function resendInvitation(id: string): Promise<void> {
+  if (isApiMode()) notInApi("Resending an invitation")
   await delay()
   const actor = requirePermission("admin", { what: "Resend invitation" })
   write((db) => {

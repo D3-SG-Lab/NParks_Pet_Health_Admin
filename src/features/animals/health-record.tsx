@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fmtDayHeading, fmtTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { ApiNotices } from "@/components/common/api-banners"
 import { getTimeline, type TimelinePeriod } from "@/services/animals"
 import type { TimelineEntry, TimelineType } from "@/services/derive"
 import type { MediaRef } from "@/types/domain"
@@ -117,6 +118,7 @@ export function HealthRecord({
           </SelectContent>
         </Select>
       </div>
+      {q.data?.notices.length ? <ApiNotices notices={q.data.notices} className="mx-5 mb-4" /> : null}
       <div className="border-t border-border">
         {q.isPending ? (
           <PanelSkeleton lines={6} />

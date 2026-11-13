@@ -5,6 +5,8 @@ import type { Animal, MedicationAdministration, MedicationRoute, MedicationSched
 
 import { appendAudit, canSeeAnimal, clone, currentUser, delay, getDb, nextId, requirePermission, userName, write } from "./core"
 import { freqLabel, scheduleActiveOn, speciesName } from "./derive"
+import { isApiMode } from "./api/config"
+import * as remote from "./remote/medication"
 
 export type DoseStatus = "overdue" | "due" | "partial" | "recorded"
 
@@ -68,6 +70,7 @@ function dueRows(): DueRow[] {
 }
 
 export async function listDueToday(filter: DueFilter = "all"): Promise<{ rows: DueRow[]; counts: Record<DueFilter, number> }> {
+  if (isApiMode()) return remote.listDueToday(filter)
   await delay()
   const all = dueRows()
   const nowMs = parseLocal(nowISO()).getTime()
@@ -258,6 +261,7 @@ export async function stopSchedule(id: string, reason: string): Promise<void> {
 
 /** Records an administration; time and officer are captured automatically. */
 export async function recordDose(scheduleId: string, doseTime: string, remarks: string): Promise<MedicationAdministration> {
+  if (isApiMode()) return remote.recordDose(scheduleId, doseTime, remarks)
   await delay()
   const db = getDb()
   const s = db.medicationSchedules.find((x) => x.id === scheduleId)

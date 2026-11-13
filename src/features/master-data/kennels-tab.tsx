@@ -37,8 +37,16 @@ import type { KennelStatus, KennelType, Species } from "@/types/domain"
 
 import type { FrameRenderer } from "./master-data-screen"
 import { BlockTile, CsvImportButton, FormDialog, MultiSelect, applyApiError } from "./shared"
+import { ApiNotices } from "@/components/common/api-banners"
+import { isApiMode } from "@/services/api/config"
 
 type Editing = { mode: "edit"; row: KennelRow } | { mode: "add"; code: string } | null
+
+/**
+ * API mode: kennels are read only (`GET /kennels` → code, block, active). There
+ * is no endpoint to add or edit kennels or blocks, and no kennel type or species.
+ */
+const API = isApiMode()
 
 export function KennelsTab({ frame }: { frame: FrameRenderer }) {
   const blocksQ = useQuery({ queryKey: ["master", "blocks"], queryFn: listKennelBlocks })
@@ -59,7 +67,7 @@ export function KennelsTab({ frame }: { frame: FrameRenderer }) {
     setEditing({ mode: "add", code: await suggestKennelCode(blockCode) })
   }
 
-  const actions = (
+  const actions = API ? null : (
     <>
       <CsvImportButton
         templateName="kennels-template.csv"
@@ -87,9 +95,11 @@ export function KennelsTab({ frame }: { frame: FrameRenderer }) {
         <PanelHeader
           title="Blocks"
           actions={
-            <Button variant="link" size="sm" onClick={() => setBlockOpen(true)}>
-              <Plus /> Block
-            </Button>
+            API ? null : (
+              <Button variant="link" size="sm" onClick={() => setBlockOpen(true)}>
+                <Plus /> Block
+              </Button>
+            )
           }
         />
         {blocksQ.isPending ? (
@@ -115,7 +125,7 @@ export function KennelsTab({ frame }: { frame: FrameRenderer }) {
         <PanelHeader
           title={block ? `${block.block.name} · ${block.block.code}` : "Kennels"}
           actions={
-            contractors.length ? (
+            API ? null : contractors.length ? (
               <span className="text-xs text-muted-foreground">
                 Contractor scope: {contractors.map((c) => `${c.name}${c.disabled ? " (disabled)" : ""}`).join(", ")}
               </span>
@@ -124,35 +134,42 @@ export function KennelsTab({ frame }: { frame: FrameRenderer }) {
             )
           }
         />
+        <ApiNotices notices={kennelsQ.data?.notices} className="mx-5 mb-3" />
         {kennelsQ.error ? (
           <QueryError error={kennelsQ.error} onRetry={() => kennelsQ.refetch()} />
         ) : (
           <TableScroll className="max-h-[440px] overflow-y-auto">
-            <Table className="min-w-[760px]">
+            <Table className={API ? "min-w-[480px]" : "min-w-[760px]"}>
               <THead>
                 <tr>
                   <Th>Code</Th>
-                  <Th>Type</Th>
-                  <Th>Species allowed</Th>
+                  {API ? null : (
+                    <>
+                      <Th>Type</Th>
+                      <Th>Species allowed</Th>
+                    </>
+                  )}
                   <Th>Status</Th>
                   <Th>Current animal</Th>
-                  <Th align="right">Actions</Th>
+                  {API ? null : <Th align="right">Actions</Th>}
                 </tr>
               </THead>
               <tbody>
                 {kennelsQ.isPending ? (
-                  <TableSkeletonRows rows={5} cols={6} />
+                  <TableSkeletonRows rows={5} cols={API ? 3 : 6} />
                 ) : kennelsQ.data.rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={API ? 3 : 6}>
                       <EmptyState
                         title="No kennels in this block yet"
-                        description="Add the first kennel or import a CSV."
+                        description={API ? "The API returned no kennels for this block." : "Add the first kennel or import a CSV."}
                         icon="search"
                         action={
-                          <Button size="sm" onClick={startAdd}>
-                            <Plus /> Add kennel
-                          </Button>
+                          API ? undefined : (
+                            <Button size="sm" onClick={startAdd}>
+                              <Plus /> Add kennel
+                            </Button>
+                          )
                         }
                       />
                     </td>
@@ -163,28 +180,38 @@ export function KennelsTab({ frame }: { frame: FrameRenderer }) {
                       <Td>
                         <KennelCode code={r.kennel.code} />
                       </Td>
-                      <Td className="whitespace-nowrap">{r.kennel.type}</Td>
-                      <Td>{r.kennel.speciesAllowed.map((id) => species.find((s) => s.id === id)?.name ?? id).join(", ")}</Td>
+                      {API ? null : (
+                        <>
+                          <Td className="whitespace-nowrap">{r.kennel.type}</Td>
+                          <Td>{r.kennel.speciesAllowed.map((id) => species.find((s) => s.id === id)?.name ?? id).join(", ")}</Td>
+                        </>
+                      )}
                       <Td>
                         <KennelStatusChip row={r} />
                       </Td>
                       <Td className="whitespace-nowrap">
                         {r.occupant ? (
-                          `${r.occupant.name} · release ${fmtDayMonth(r.occupant.releaseDate)}`
+                          r.occupant.releaseDate ? (
+                            `${r.occupant.name} · release ${fmtDayMonth(r.occupant.releaseDate)}`
+                          ) : (
+                            `${r.occupant.name} · since ${fmtDayMonth(r.occupant.arrivalDate)}`
+                          )
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </Td>
-                      <Td align="right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditing({ mode: "edit", row: r })}
-                          aria-label={`Edit ${r.kennel.code}`}
-                        >
-                          Edit
-                        </Button>
-                      </Td>
+                      {API ? null : (
+                        <Td align="right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditing({ mode: "edit", row: r })}
+                            aria-label={`Edit ${r.kennel.code}`}
+                          >
+                            Edit
+                          </Button>
+                        </Td>
+                      )}
                     </Tr>
                   ))
                 )}

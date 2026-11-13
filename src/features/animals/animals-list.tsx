@@ -40,6 +40,8 @@ import { listAnimals, recordAnimalExport, type AnimalChip, type AnimalSortKey, t
 import { getReferenceData } from "@/services/reference"
 
 import { animalMeta, CheckChip } from "./animal-bits"
+import { ApiNotices } from "@/components/common/api-banners"
+import { isApiMode } from "@/services/api/config"
 
 const COLS = 9
 
@@ -96,7 +98,11 @@ export function AnimalsList() {
     <div className="space-y-5">
       <PageHeader
         title="Animals"
-        description={`${data?.tabCounts.active ?? "…"} active stays across KC1–KC3 · search by kennel code, name or microchip`}
+        description={
+          isApiMode()
+            ? `${data?.tabCounts.active ?? "…"} active stays · search by name or microchip`
+            : `${data?.tabCounts.active ?? "…"} active stays across KC1–KC3 · search by kennel code, name or microchip`
+        }
         actions={
           <>
             <Button variant="outline" onClick={exportCsv} disabled={!data || data.total === 0}>
@@ -123,6 +129,11 @@ export function AnimalsList() {
           { value: "released", label: "Released", count: data?.tabCounts.released },
         ]}
       />
+
+      <ApiNotices notices={data?.notices} />
+      {isApiMode() && tab === "releasing" ? (
+        <ApiNotices notices={["Stays in the API have no planned release date, so “Releasing this week” stays empty."]} />
+      ) : null}
 
       <Panel className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-4 sm:p-5">
@@ -248,9 +259,9 @@ export function AnimalsList() {
                         ) : (
                           <>
                             <p className="text-xs text-muted-foreground">
-                              Day {r.stay.day} of {r.stay.total}
+                              {r.animal.releaseDate ? `Day ${r.stay.day} of ${r.stay.total}` : `Day ${r.stay.day}`}
                             </p>
-                            <ProgressBar value={r.stay.ratio} className="mt-1.5 w-24" />
+                            {r.animal.releaseDate ? <ProgressBar value={r.stay.ratio} className="mt-1.5 w-24" /> : null}
                           </>
                         )}
                       </Td>

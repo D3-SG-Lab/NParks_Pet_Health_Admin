@@ -58,7 +58,8 @@ function EditForm({ animal, onClose }: { animal: Animal; onClose: () => void }) 
     defaultValues: {
       name: animal.name,
       breed: animal.breed,
-      sex: animal.sex,
+      // Editing is mock-only (the API has no update endpoint); mock animals are always M or F.
+      sex: animal.sex === "U" ? undefined : animal.sex,
       dateOfBirth: animal.dateOfBirth,
       origin: animal.origin,
       microchip: animal.microchip,

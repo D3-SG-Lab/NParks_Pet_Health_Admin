@@ -165,7 +165,8 @@ export interface NotificationRule {
 // Animals, stays & arrival (BE-009, BE-010)
 // ---------------------------------------------------------------------------
 
-export type Sex = "M" | "F"
+/** "U" = unknown (the real API allows Male | Female | Unknown). */
+export type Sex = "M" | "F" | "U"
 
 export type StayStatus = "arriving" | "active" | "released"
 

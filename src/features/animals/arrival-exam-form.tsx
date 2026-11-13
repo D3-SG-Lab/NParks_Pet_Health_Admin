@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -14,16 +15,25 @@ import { Textarea } from "@/components/ui/textarea"
 import { isApiError } from "@/lib/errors"
 import { useServiceMutation } from "@/lib/query"
 import { cn } from "@/lib/utils"
-import { completeArrivalExam } from "@/services/animals"
+import { completeArrivalExam, loadExamDraft, saveExamDraft } from "@/services/animals"
+import { isApiMode } from "@/services/api/config"
+import { EXAM_SYSTEM } from "@/services/remote/mappers"
 import { getReferenceData } from "@/services/reference"
 import type { Animal } from "@/types/domain"
 
 export const EXAM_SYSTEMS = ["Skin / coat", "Eyes", "Nose", "Ears", "Mouth", "Hydration", "Respiratory"]
 const MENTATIONS = ["Responsive", "Calm", "Active", "Alert"] as const
 
+/**
+ * API mode: `POST /animals/{id}/exam` has no vet list or notes field (vetStaffId
+ * is optional), so those inputs are hidden; the exam draft is kept on the server
+ * with `PUT /arrival-draft/exam`.
+ */
+const API = isApiMode()
+
 const schema = z
   .object({
-    vetId: z.string().min(1, "Pick the examining vet."),
+    vetId: API ? z.string() : z.string().min(1, "Pick the examining vet."),
     weight: z
       .string()
       .trim()
@@ -59,6 +69,7 @@ export function ArrivalExamForm({ animal, onCompleted }: { animal: Animal; onCom
     },
   })
   const findings = useWatch({ control: form.control, name: "findings" })
+  const draftStatus = useServerExamDraft(form)
 
   const complete = useServiceMutation(
     (v: FormValues) =>
@@ -87,26 +98,28 @@ export function ArrivalExamForm({ animal, onCompleted }: { animal: Animal; onCom
   return (
     <form onSubmit={form.handleSubmit((v) => complete.mutate(v))} noValidate className="space-y-6">
       <div className="grid gap-5 md:grid-cols-2">
-        <Field label="Examining vet" required error={e.vetId?.message}>
-          <Controller
-            control={form.control}
-            name="vetId"
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger className="w-full" aria-label="Examining vet" aria-invalid={Boolean(e.vetId)}>
-                  <SelectValue placeholder="Choose vet" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vets.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-        </Field>
+        {API ? null : (
+          <Field label="Examining vet" required error={e.vetId?.message}>
+            <Controller
+              control={form.control}
+              name="vetId"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className="w-full" aria-label="Examining vet" aria-invalid={Boolean(e.vetId)}>
+                    <SelectValue placeholder="Choose vet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vets.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </Field>
+        )}
         <Field label="Weight (kg)" required htmlFor="ex-weight" error={e.weight?.message}>
           <Input id="ex-weight" inputMode="decimal" placeholder="e.g. 6.4" aria-invalid={Boolean(e.weight)} {...form.register("weight")} />
         </Field>
@@ -175,17 +188,69 @@ export function ArrivalExamForm({ animal, onCompleted }: { animal: Animal; onCom
         <p className="mt-2 text-xs text-muted-foreground">Abnormal findings create observations that are sent for AI routing.</p>
       </fieldset>
 
-      <Field label="Exam notes" htmlFor="ex-notes" error={e.notes?.message}>
-        <Textarea id="ex-notes" rows={3} {...form.register("notes")} />
-      </Field>
+      {API ? null : (
+        <Field label="Exam notes" htmlFor="ex-notes" error={e.notes?.message}>
+          <Textarea id="ex-notes" rows={3} {...form.register("notes")} />
+        </Field>
+      )}
 
       <FormError message={e.root?.message} />
 
-      <div className="flex justify-end border-t border-border pt-5">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5">
+        {draftStatus ? (
+          <p className={cn("mr-auto text-xs", draftStatus.error ? "text-warning" : "text-muted-foreground")} role="status">
+            {draftStatus.text}
+          </p>
+        ) : null}
         <Button type="submit" size="lg" loading={complete.isPending}>
           Complete exam
         </Button>
       </div>
     </form>
   )
+}
+
+type ExamForm = ReturnType<typeof useForm<FormValues>>
+
+/** API mode: restores the exam draft from `GET /arrival-draft` and saves changes with `PUT /arrival-draft/exam`. */
+function useServerExamDraft(form: ExamForm): { text: string; error: boolean } | null {
+  const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null)
+  const restored = useRef(false)
+  const draft = useQuery({ queryKey: ["arrival-draft"], queryFn: loadExamDraft, enabled: API, retry: false, staleTime: Infinity })
+  const values = useWatch({ control: form.control })
+
+  useEffect(() => {
+    if (!API || restored.current || !draft.isFetched) return
+    restored.current = true
+    const d = draft.data
+    if (!d) return
+    const current = form.getValues()
+    form.reset({
+      ...current,
+      weight: d.weightKg != null ? String(d.weightKg) : current.weight,
+      mentation: d.mentation ?? current.mentation,
+      findings: current.findings.map((f) => {
+        const saved = d.findings?.find((x) => x.system === EXAM_SYSTEM[f.system])
+        return saved ? { ...f, normal: !saved.abnormal, note: saved.note ?? "" } : f
+      }),
+    })
+  }, [draft.isFetched, draft.data, form])
+
+  useEffect(() => {
+    if (!API || !restored.current || !form.formState.isDirty) return
+    const t = setTimeout(() => {
+      saveExamDraft({
+        weightKg: values.weight ? Number(values.weight) : undefined,
+        mentation: values.mentation,
+        findings: values.findings?.map((f) => ({ system: f?.system ?? "", normal: f?.normal ?? true, note: f?.note ?? "" })),
+      })
+        .then(() => setStatus({ text: "Draft saved", error: false }))
+        .catch((e: unknown) => setStatus({ text: `Draft not saved: ${(e as Error).message}`, error: true }))
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [values, form.formState.isDirty])
+
+  if (!API) return null
+  if (draft.isError) return { text: `Couldn’t load the saved draft: ${draft.error.message}`, error: true }
+  return status
 }

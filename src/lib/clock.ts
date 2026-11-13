@@ -75,8 +75,24 @@ export function diffDays(a: ISODate, b: ISODate): number {
 
 /** "Day 12 of 30" for a stay. */
 export function stayProgress(arrival: ISODate, release: ISODate, today: ISODate = todayISO()) {
+  // API stays have no planned release date: count days only (total = day so far).
+  if (!release) {
+    const day = Math.max(1, diffDays(arrival, today) + 1)
+    return { day, total: day, ratio: 1 }
+  }
   // Arrived 10/10, release 09/11 → "Day 12 of 30" on 21/10 (release day is not counted).
   const total = Math.max(1, diffDays(arrival, release))
   const day = Math.min(total, Math.max(1, diffDays(arrival, today) + 1))
   return { day, total, ratio: day / total }
+}
+
+/**
+ * API timestamps are UTC ("2024-01-10T08:00:00Z"; the live API omits the "Z").
+ * Converts them to the app's local "YYYY-MM-DDTHH:mm:ss" form.
+ */
+export function fromUtc(value: string | null | undefined): ISODateTime | null {
+  if (!value) return null
+  const hasZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value)
+  const d = new Date(hasZone ? value : `${value}Z`)
+  return Number.isNaN(d.getTime()) ? null : toISODateTime(d)
 }

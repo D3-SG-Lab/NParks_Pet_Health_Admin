@@ -6,6 +6,8 @@ export type ApiErrorCode =
   | "CONFLICT" // 409 — invalid case transition, duplicate microchip, double dose…
   | "VALIDATION" // 422
   | "UNAUTHENTICATED" // 401
+  | "SERVER" // 5xx from the real API
+  | "NETWORK" // no response (offline, proxy or API host unreachable)
 
 const STATUS: Record<ApiErrorCode, number> = {
   FORBIDDEN: 403,
@@ -13,6 +15,8 @@ const STATUS: Record<ApiErrorCode, number> = {
   CONFLICT: 409,
   VALIDATION: 422,
   UNAUTHENTICATED: 401,
+  SERVER: 500,
+  NETWORK: 0,
 }
 
 export class ApiError extends Error {
@@ -21,11 +25,11 @@ export class ApiError extends Error {
   readonly field?: string
   readonly ref: string
 
-  constructor(code: ApiErrorCode, message: string, field?: string) {
+  constructor(code: ApiErrorCode, message: string, field?: string, status?: number) {
     super(message)
     this.name = "ApiError"
     this.code = code
-    this.status = STATUS[code]
+    this.status = status ?? STATUS[code]
     this.field = field
     this.ref = Math.random().toString(16).slice(2, 6).toUpperCase() + "-" + Math.random().toString(16).slice(2, 6).toUpperCase()
   }

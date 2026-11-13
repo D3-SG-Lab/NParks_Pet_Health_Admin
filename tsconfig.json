@@ -22,6 +22,17 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "**/*.mts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts",
+    ".next-api/types/**/*.ts",
+    ".next-api/dev/types/**/*.ts",
+    ".next-mock/types/**/*.ts",
+    ".next-mock/dev/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }

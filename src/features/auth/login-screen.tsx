@@ -15,10 +15,13 @@ import { APP_CONFIG } from "@/config/app"
 import { ROLE_LABEL } from "@/config/rbac"
 import { errorMessage } from "@/lib/errors"
 import { cn } from "@/lib/utils"
-import { listSignInAccounts, signIn } from "@/services/auth"
+import { isApiMode, OIDC_LOGIN_ENABLED } from "@/services/api/config"
+import { hasApiSession, listSignInAccounts, signIn } from "@/services/auth"
 import { scopeLabel } from "@/services/users"
 import { useSessionStore } from "@/stores/session-store"
 import type { IdentityProvider } from "@/types/domain"
+
+import { ApiSignIn } from "./api-sign-in"
 
 const DEFAULT_ACCOUNT: Record<IdentityProvider, string> = { officer: "u-tan-j", contractor: "u-lee-k" }
 
@@ -35,7 +38,11 @@ export function LoginScreen() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const { data: accounts = [], isPending } = useQuery({ queryKey: ["signin-accounts", idp], queryFn: () => listSignInAccounts(idp) })
+  const { data: accounts = [], isPending } = useQuery({
+    queryKey: ["signin-accounts", idp],
+    queryFn: () => listSignInAccounts(idp),
+    enabled: !isApiMode(),
+  })
 
   // With Cache Components, Next keeps this page alive in a hidden <Activity>
   // after a successful sign-in navigates away, so its state comes back on the
@@ -50,7 +57,9 @@ export function LoginScreen() {
   )
 
   useEffect(() => {
-    if (hydrated && sessionUserId && !switching && !expired) router.replace(next && next.startsWith("/") ? next : "/operations")
+    // API mode: a stored session id without an access token is not a session.
+    const signedIn = sessionUserId && (!isApiMode() || hasApiSession())
+    if (hydrated && signedIn && !switching && !expired) router.replace(next && next.startsWith("/") ? next : "/operations")
   }, [hydrated, sessionUserId, switching, expired, next, router])
 
   const submit = async () => {
@@ -106,7 +115,11 @@ export function LoginScreen() {
           </div>
           <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Choose your identity provider. This POC simulates the OIDC sign-in with demo accounts.
+            {isApiMode()
+              ? OIDC_LOGIN_ENABLED
+                ? "Sign in to the AQC workbench."
+                : "Choose your account type, role and user id to sign in to the AQC workbench."
+              : "Choose your identity provider. This POC simulates the OIDC sign-in with demo accounts."}
           </p>
 
           {expired ? (
@@ -118,75 +131,79 @@ export function LoginScreen() {
             </div>
           ) : null}
 
-          <div className="mt-6 space-y-5">
-            <Segmented
-              ariaLabel="Identity provider"
-              className="w-full"
-              value={idp}
-              onChange={(v) => {
-                setIdp(v)
-                setSelected(DEFAULT_ACCOUNT[v])
-                setError(null)
-              }}
-              options={[
-                { value: "officer", label: "Officer IdP" },
-                { value: "contractor", label: "Contractor IdP" },
-              ]}
-            />
+          {isApiMode() ? (
+            <ApiSignIn next={next} />
+          ) : (
+            <div className="mt-6 space-y-5">
+              <Segmented
+                ariaLabel="Identity provider"
+                className="w-full"
+                value={idp}
+                onChange={(v) => {
+                  setIdp(v)
+                  setSelected(DEFAULT_ACCOUNT[v])
+                  setError(null)
+                }}
+                options={[
+                  { value: "officer", label: "Officer IdP" },
+                  { value: "contractor", label: "Contractor IdP" },
+                ]}
+              />
 
-            <div role="radiogroup" aria-label="Demo account" className="thin-scroll max-h-[380px] space-y-2 overflow-y-auto pr-1">
-              {isPending
-                ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-muted" />)
-                : accounts.map((u) => {
-                    const active = u.id === selected
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={active}
-                        onClick={() => setSelected(u.id)}
-                        className={cn(
-                          "flex w-full items-center gap-3 rounded-xl border bg-card px-3.5 py-3 text-left transition-colors focus-visible:ring-3 focus-visible:ring-primary/20 focus-visible:outline-none",
-                          active
-                            ? "border-primary bg-selected shadow-[0_0_0_1px_var(--primary)]"
-                            : "border-border hover:border-border-strong"
-                        )}
-                      >
-                        <UserAvatar name={u.name} role={u.role} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold">{u.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">{u.email}</span>
-                        </span>
-                        <span className="flex flex-col items-end gap-1">
-                          <StatusChip
-                            size="sm"
-                            tone={
-                              u.role === "auditor" ? "ai" : u.role === "contractor" ? "neutral" : u.role === "admin" ? "primary" : "info"
-                            }
-                          >
-                            {ROLE_LABEL[u.role]}
-                          </StatusChip>
-                          {u.status === "disabled" ? (
-                            <span className="text-[11px] text-muted-foreground">Disabled</span>
-                          ) : u.role === "contractor" ? (
-                            <span className="text-[11px] text-muted-foreground">{scopeLabel(u)}</span>
-                          ) : null}
-                        </span>
-                      </button>
-                    )
-                  })}
+              <div role="radiogroup" aria-label="Demo account" className="thin-scroll max-h-[380px] space-y-2 overflow-y-auto pr-1">
+                {isPending
+                  ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-muted" />)
+                  : accounts.map((u) => {
+                      const active = u.id === selected
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() => setSelected(u.id)}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-xl border bg-card px-3.5 py-3 text-left transition-colors focus-visible:ring-3 focus-visible:ring-primary/20 focus-visible:outline-none",
+                            active
+                              ? "border-primary bg-selected shadow-[0_0_0_1px_var(--primary)]"
+                              : "border-border hover:border-border-strong"
+                          )}
+                        >
+                          <UserAvatar name={u.name} role={u.role} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold">{u.name}</span>
+                            <span className="block truncate text-xs text-muted-foreground">{u.email}</span>
+                          </span>
+                          <span className="flex flex-col items-end gap-1">
+                            <StatusChip
+                              size="sm"
+                              tone={
+                                u.role === "auditor" ? "ai" : u.role === "contractor" ? "neutral" : u.role === "admin" ? "primary" : "info"
+                              }
+                            >
+                              {ROLE_LABEL[u.role]}
+                            </StatusChip>
+                            {u.status === "disabled" ? (
+                              <span className="text-[11px] text-muted-foreground">Disabled</span>
+                            ) : u.role === "contractor" ? (
+                              <span className="text-[11px] text-muted-foreground">{scopeLabel(u)}</span>
+                            ) : null}
+                          </span>
+                        </button>
+                      )
+                    })}
+              </div>
+
+              <FormError message={error} />
+
+              <Button size="lg" className="w-full" loading={pending} onClick={submit} disabled={!selected}>
+                Continue with {idp === "officer" ? "Officer IdP" : "Contractor IdP"}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Production sign-in uses OIDC Authorization Code + PKCE with MFA. Sign-ins are audited.
+              </p>
             </div>
-
-            <FormError message={error} />
-
-            <Button size="lg" className="w-full" loading={pending} onClick={submit} disabled={!selected}>
-              Continue with {idp === "officer" ? "Officer IdP" : "Contractor IdP"}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              Production sign-in uses OIDC Authorization Code + PKCE with MFA. Sign-ins are audited.
-            </p>
-          </div>
+          )}
         </div>
       </div>
     </div>

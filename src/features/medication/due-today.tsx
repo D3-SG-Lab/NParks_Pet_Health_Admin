@@ -17,6 +17,7 @@ import { listDueToday, type DueFilter, type DueRow } from "@/services/medication
 
 import { RecordDoseDialog } from "./record-dose-dialog"
 import { ScheduleForm } from "./schedule-form"
+import { isApiMode } from "@/services/api/config"
 
 const PREVIEW = 6
 
@@ -183,12 +184,18 @@ function DueTable({ selectedAnimalId, onSelectAnimal }: { selectedAnimalId: stri
 }
 
 export function DueTodayTab() {
-  const canRecord = usePermission("record")
+  // API mode: schedules can't be created (no endpoint), so the "Add schedule" panel is hidden.
+  const canRecord = usePermission("record") && !isApiMode()
   /** Row clicked in the table — pre-fills (and resets) the Add schedule form. */
   const [selectedAnimalId, setSelectedAnimalId] = useState<string | null>(null)
   /** Animal currently chosen in the form (header label). */
   const [formAnimalId, setFormAnimalId] = useState<string | null>(null)
-  const animalsQ = useQuery({ queryKey: ["animals", "picker", "active"], queryFn: () => listAnimals({ tab: "active", pageSize: 1000 }) })
+  const animalsQ = useQuery({
+    queryKey: ["animals", "picker", "active"],
+    queryFn: () => listAnimals({ tab: "active", pageSize: 1000 }),
+    // Only the "Add schedule" panel needs it (hidden in API mode).
+    enabled: canRecord,
+  })
   const headerId = formAnimalId ?? selectedAnimalId
   const headerAnimal = headerId ? animalsQ.data?.allRows.find((r) => r.animal.id === headerId)?.animal : undefined
   const selectedLabel = headerAnimal ? `${headerAnimal.name} · ${headerAnimal.kennelCode}` : null

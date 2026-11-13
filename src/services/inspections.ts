@@ -21,6 +21,8 @@ import {
 } from "./core"
 import { checkInfo, inspectionFor, inspectionSummary, type CheckInfo } from "./derive"
 import { createObservationRecord, processObservation } from "./observations"
+import { isApiMode } from "./api/config"
+import * as remote from "./remote/inspections"
 
 export interface BoardTile {
   kennel: Kennel
@@ -46,9 +48,12 @@ export interface SessionBoard {
   closes: string
   blocks: BoardBlock[]
   totals: { completed: number; expected: number; stillDue: number; overdue: number; overdueList: string[]; abnormal: number }
+  /** Parts of the board the API couldn't load (API mode). */
+  notices?: string[]
 }
 
 export async function getSessionBoard(date: string, session: Session): Promise<SessionBoard> {
+  if (isApiMode()) return remote.getSessionBoard(date, session)
   await delay()
   const db = getDb()
   const user = currentUser(db)
@@ -128,6 +133,8 @@ export interface InspectionForm {
   templateVersion: number
   items: ChecklistItem[]
   existing: Inspection | null
+  /** Set when the recorded inspection can't be changed (API mode: no update endpoint). */
+  readOnlyReason?: string | null
 }
 
 function liveTemplate(speciesTemplateId: string) {
@@ -139,6 +146,7 @@ function liveTemplate(speciesTemplateId: string) {
 }
 
 export async function getInspectionForm(animalId: string, date: string, session: Session): Promise<InspectionForm> {
+  if (isApiMode()) return remote.getInspectionForm(animalId, date, session)
   await delay(150)
   const db = getDb()
   const a = db.animals.find((x) => x.id === animalId)
@@ -186,6 +194,7 @@ export interface RecordInspectionInput {
 export async function recordInspection(
   input: RecordInspectionInput
 ): Promise<{ inspection: Inspection; observationId: string | null; edited: boolean }> {
+  if (isApiMode()) return remote.recordInspection(input)
   await delay()
   const db = getDb()
   const a = db.animals.find((x) => x.id === input.animalId)

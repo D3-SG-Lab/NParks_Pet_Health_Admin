@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { AiSummaryCard } from "@/components/common/ai-card"
 import { AnimalAvatar } from "@/components/common/avatars"
 import { ConfirmDialog } from "@/components/common/confirm-dialog"
+import { ApiNotices } from "@/components/common/api-banners"
 import { Breadcrumbs } from "@/components/common/page-header"
 import { PanelSkeleton, QueryError } from "@/components/common/states"
 import { KennelCode, StatusChip } from "@/components/common/status-chip"
@@ -24,6 +25,7 @@ import { useServiceMutation } from "@/lib/query"
 import { ANIMAL_STATUS, CASE_STATUS } from "@/lib/status"
 import { cn } from "@/lib/utils"
 import { getAnimal, releaseAnimal, type AnimalDetail as Detail } from "@/services/animals"
+import { isApiMode } from "@/services/api/config"
 import type { CheckInfo } from "@/services/derive"
 
 import { animalMeta } from "./animal-bits"
@@ -140,6 +142,7 @@ function DetailView({ detail }: { detail: Detail }) {
   return (
     <div className="space-y-5">
       <Breadcrumbs items={[{ label: "Animals", href: "/animals" }, { label: a.name }]} />
+      <ApiNotices notices={detail.notices} />
 
       <Panel className="p-5 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -169,17 +172,19 @@ function DetailView({ detail }: { detail: Detail }) {
               <>
                 <p className="text-sm text-muted-foreground">
                   <span className="font-semibold text-foreground">
-                    Day {row.stay.day} of {row.stay.total}
+                    {a.releaseDate ? `Day ${row.stay.day} of ${row.stay.total}` : `Day ${row.stay.day}`}
                   </span>{" "}
-                  Arrived {fmtDayMonth(a.arrivalDate)} · release {fmtDayMonth(a.releaseDate)}
+                  Arrived {fmtDayMonth(a.arrivalDate)}
+                  {a.releaseDate ? ` · release ${fmtDayMonth(a.releaseDate)}` : " · no planned release date"}
                 </p>
-                <ProgressBar value={row.stay.ratio} className="mt-2" />
+                {a.releaseDate ? <ProgressBar value={row.stay.ratio} className="mt-2" /> : null}
               </>
             )}
           </div>
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
-          {canArrive && !released ? (
+          {/* The API has no endpoint to edit a stay. */}
+          {canArrive && !released && !isApiMode() ? (
             <Button variant="outline" onClick={() => setEditOpen(true)}>
               <Pencil /> Edit
             </Button>
@@ -340,9 +345,13 @@ function DetailView({ detail }: { detail: Detail }) {
             reason “Animal released”, and active medication schedules stop.
           </p>
         ) : null}
-        <Field label="Release note" htmlFor="release-note" hint="Optional — e.g. collected by owner, transferred.">
-          <Textarea id="release-note" rows={3} value={releaseNote} onChange={(e) => setReleaseNote(e.target.value)} />
-        </Field>
+        {isApiMode() ? (
+          <p className="text-sm text-muted-foreground">The release date is recorded as today.</p>
+        ) : (
+          <Field label="Release note" htmlFor="release-note" hint="Optional — e.g. collected by owner, transferred.">
+            <Textarea id="release-note" rows={3} value={releaseNote} onChange={(e) => setReleaseNote(e.target.value)} />
+          </Field>
+        )}
       </ConfirmDialog>
     </div>
   )

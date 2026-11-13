@@ -36,6 +36,8 @@ interface Attachment {
   id: string
   kind: "photo" | "video"
   caption: string
+  /** Uploaded through a presigned URL in API mode. */
+  file: File
 }
 
 interface NewObservationDialogProps {
@@ -69,7 +71,11 @@ function ObservationFlow({ defaultAnimalId, onClose }: { defaultAnimalId: string
 
   const create = useServiceMutation(
     (v: FormValues) =>
-      createObservation({ text: v.text, animalId: v.animalId, media: attachments.map(({ kind, caption }) => ({ kind, caption })) }),
+      createObservation({
+        text: v.text,
+        animalId: v.animalId,
+        media: attachments.map(({ kind, caption, file }) => ({ kind, caption, file })),
+      }),
     {
       silentError: true,
       onSuccess: (r) => setResult(r),
@@ -87,7 +93,7 @@ function ObservationFlow({ defaultAnimalId, onClose }: { defaultAnimalId: string
       if (!video && !image) errors.push(`${f.name}: only photos and videos are accepted`)
       else if (image && f.size > MAX_IMAGE) errors.push(`${f.name}: images must be 10 MB or less`)
       else if (video && f.size > MAX_VIDEO) errors.push(`${f.name}: videos must be 100 MB or less`)
-      else next.push({ id: `${f.name}-${f.size}-${f.lastModified}`, kind: video ? "video" : "photo", caption: f.name })
+      else next.push({ id: `${f.name}-${f.size}-${f.lastModified}`, kind: video ? "video" : "photo", caption: f.name, file: f })
     }
     setAttachments((list) => [...list, ...next.filter((n) => !list.some((x) => x.id === n.id))].slice(0, 8))
     setFileError(errors.length ? errors.join(" · ") : null)
@@ -135,9 +141,9 @@ function ObservationFlow({ defaultAnimalId, onClose }: { defaultAnimalId: string
             <div className="flex gap-3 rounded-xl border border-success-border bg-success-tile p-4 text-sm text-success">
               <CircleCheck className="mt-0.5 size-5 shrink-0" aria-hidden />
               <div>
-                <p className="font-semibold">Sent for AI routing — an officer will confirm</p>
+                <p className="font-semibold">{result.notice ? "Observation saved" : "Sent for AI routing — an officer will confirm"}</p>
                 <p className="mt-0.5 text-foreground/80">
-                  The observation is saved. An officer confirms the AI suggestion before it reaches a case.
+                  {result.notice ?? "The observation is saved. An officer confirms the AI suggestion before it reaches a case."}
                 </p>
               </div>
             </div>

@@ -95,7 +95,7 @@ function CandidateCard({
 function AnimalSearch({ onPick }: { onPick: (c: QueueCandidate) => void }) {
   const [value, setValue] = useState("")
   const q = useDebounced(value.trim(), 200)
-  const results = useQuery({ queryKey: ["animal-search", q], queryFn: () => searchActiveAnimals(q), enabled: q.length >= 1 })
+  const results = useQuery({ queryKey: ["animal-search", q], queryFn: () => searchActiveAnimals(q, "local"), enabled: q.length >= 1 })
   return (
     <div className="relative">
       <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />

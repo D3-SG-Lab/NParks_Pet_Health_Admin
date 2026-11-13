@@ -37,6 +37,7 @@ import type { AuditEvent } from "@/types/domain"
 
 import { AuditEventDetail } from "./audit-event-detail"
 import { AUDIT_CSV_HEADERS, auditCsvRow } from "./audit-format"
+import { MockDataBanner } from "@/components/common/api-banners"
 
 interface Filters {
   animal: string
@@ -189,6 +190,7 @@ function AuditLog() {
           </Button>
         }
       />
+      <MockDataBanner what="The audit log" />
 
       <Panel className="p-5">
         <form
