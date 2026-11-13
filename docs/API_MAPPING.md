@@ -142,7 +142,6 @@ Sections 1–4 are the mapping made before implementation. **Section 5 records w
 | Pet breeds (POST, GET, PATCH status)                                 | No breed screen; the stay create body has no breed field, so a breed dropdown could not be saved                         |
 | Vaccine types (POST, GET, PATCH status)                              | No vaccine UI in the design                                                                                              |
 | Vet specialisations (POST, GET, PATCH status)                        | No UI in the design                                                                                                      |
-| `DELETE /admin/nparks-admins/{id}`                                   | The Users screen has disable but no delete action                                                                        |
 | `PUT /me/push-token`, `DELETE /me/push-token`                        | Mobile push tokens (FCM/APNs)                                                                                            |
 | `PATCH /animals/{id}/status` with `deceased`                         | No "deceased" action in the design                                                                                       |
 | `GET /arrival-draft` → `detailsJson`                                 | Readable, but there is no endpoint to write the details portion                                                          |
@@ -163,41 +162,41 @@ Verification levels:
 - **Live** — exercised against `https://linthitd3-001-site1.ktempurl.com` (the URL in `.env.example`).
 - **Unit** — `src/services/api/api.test.ts`.
 
-| Endpoint                           | Method       | Used by                                                  | E2E     | Live API                                                            |
-| ---------------------------------- | ------------ | -------------------------------------------------------- | ------- | ------------------------------------------------------------------- |
-| `/auth/authorize`                  | GET          | Login → Officer / Contractor IdP button                  | ✅      | not tried (needs a registered redirect URI)                         |
-| `/auth/callback`                   | POST         | `/auth/callback` page                                    | ✅      | not tried                                                           |
-| `/auth/refresh`                    | POST         | Axios 401 interceptor                                    | Unit ✅ | not tried (dev tokens have no refresh token)                        |
-| `/auth/logout`                     | POST         | Sign out (only when a refresh token exists)              | —       | not tried                                                           |
-| `/auth/dev-token`                  | POST         | Login → Development sign-in                              | ✅      | ✅ 200 (officer and NParks admin)                                   |
-| `/admin/nparks-admins`             | GET          | Users & roles list                                       | ✅      | ✅ 200                                                              |
-| `/admin/nparks-admins/{id}`        | GET          | Signed-in admin's name                                   | ✅      | ✅ (curl)                                                           |
-| `/admin/nparks-admins`             | POST         | Add user (Admin role)                                    | ✅      | not tried (would create a real account)                             |
-| `/admin/nparks-admins/{id}/status` | PATCH        | Enable / Disable                                         | ✅      | not tried                                                           |
-| `/admin/nparks-admins/{id}`        | DELETE       | Delete (API mode only)                                   | ✅      | not tried                                                           |
-| `/master-data/species`             | GET          | Master data → Species                                    | ✅      | ✅ 200 (empty list)                                                 |
-| `/master-data/species`             | POST         | Add species                                              | ✅      | not tried (no delete endpoint to undo)                              |
-| `/master-data/species/{id}/status` | PATCH        | Active switch                                            | ✅      | not tried                                                           |
-| `/animals`                         | GET          | Animals list, search, filters, pickers, board, nav badge | ✅      | ✅ 200 (empty list)                                                 |
-| `/animals/{id}`                    | GET          | Animal profile, report, exam step                        | ✅      | ✅ 404 handled                                                      |
-| `/animals`                         | POST         | New arrival step 1                                       | ✅      | ❌ **500, empty body** — also for the collection's own example body |
-| `/animals/{id}/status`             | PATCH        | Release animal                                           | ✅      | not tried (no stay could be created)                                |
-| `/kennels`                         | GET          | Arrival kennel picker, board, Master data → Kennels      | ✅      | ✅ 200 (22 kennels KC1–KC3)                                         |
-| `/countries`                       | GET          | Arrival country picker                                   | ✅      | ✅ 200                                                              |
-| `/animals/{id}/exam`               | POST         | New arrival step 2                                       | ✅      | not tried                                                           |
-| `/animals/{id}/exam`               | GET          | Profile exam card, timeline                              | ✅      | ❌ 500 for a missing stay (collection says 404)                     |
-| `/arrival-draft/exam`              | PUT          | Exam draft autosave                                      | ✅      | ❌ 500                                                              |
-| `/arrival-draft`                   | GET / DELETE | Draft restore / cleared after submit                     | ✅      | ❌ GET 500                                                          |
-| `/animals/{id}/inspections`        | POST         | Record inspection                                        | ✅      | not tried                                                           |
-| `/animals/{id}/inspections?date=`  | GET          | Board, profile checks, timeline, sheet                   | ✅      | ❌ 500 for a missing stay                                           |
-| `/animals/inspections/{id}`        | GET          | (client function only)                                   | —       | ❌ 500                                                              |
-| `/observations`                    | POST         | New observation                                          | ✅      | ✅ 400 validation message shown                                     |
-| `/observations/{id}`               | GET          | Poll AI processing status                                | ✅      | ❌ 500                                                              |
-| `/animals/{id}/observations`       | GET          | Profile timeline                                         | ✅      | ✅ 404 handled                                                      |
-| `/medication/animals?date=`        | GET          | Medication → Due today                                   | ✅      | ❌ **404, route not deployed** (shown on screen)                    |
-| `/animals/{id}/medication?date=`   | GET          | Due today rows, profile medication card                  | ✅      | ❌ 404                                                              |
-| `/medication/administrations`      | POST         | Record dose                                              | ✅      | ❌ 404                                                              |
-| `/media/presign` + PUT `uploadUrl` | POST         | Observation photos/videos                                | ✅      | ✅ 400 validation reached                                           |
+| Endpoint                           | Method       | Used by                                                             | E2E     | Live API                                                            |
+| ---------------------------------- | ------------ | ------------------------------------------------------------------- | ------- | ------------------------------------------------------------------- |
+| `/auth/authorize`                  | GET          | Login → IdP button (only with `NEXT_PUBLIC_ENABLE_OIDC_LOGIN=true`) | ✅      | not tried (needs a registered redirect URI)                         |
+| `/auth/callback`                   | POST         | `/auth/callback` page                                               | ✅      | not tried                                                           |
+| `/auth/refresh`                    | POST         | Axios 401 interceptor                                               | Unit ✅ | not tried (dev tokens have no refresh token)                        |
+| `/auth/logout`                     | POST         | Sign out (only when a refresh token exists)                         | —       | not tried                                                           |
+| `/auth/dev-token`                  | POST         | Login → Sign in (default login method)                              | ✅      | ✅ 200 (officer and NParks admin)                                   |
+| `/admin/nparks-admins`             | GET          | Users & roles list                                                  | ✅      | ✅ 200                                                              |
+| `/admin/nparks-admins/{id}`        | GET          | Signed-in admin's name                                              | ✅      | ✅ (curl)                                                           |
+| `/admin/nparks-admins`             | POST         | Add user (Admin role)                                               | ✅      | not tried (would create a real account)                             |
+| `/admin/nparks-admins/{id}/status` | PATCH        | Enable / Disable                                                    | ✅      | not tried                                                           |
+| `/admin/nparks-admins/{id}`        | DELETE       | Delete (API mode only)                                              | ✅      | not tried                                                           |
+| `/master-data/species`             | GET          | Master data → Species                                               | ✅      | ✅ 200 (empty list)                                                 |
+| `/master-data/species`             | POST         | Add species                                                         | ✅      | not tried (no delete endpoint to undo)                              |
+| `/master-data/species/{id}/status` | PATCH        | Active switch                                                       | ✅      | not tried                                                           |
+| `/animals`                         | GET          | Animals list, search, filters, pickers, board, nav badge            | ✅      | ✅ 200 (empty list)                                                 |
+| `/animals/{id}`                    | GET          | Animal profile, report, exam step                                   | ✅      | ✅ 404 handled                                                      |
+| `/animals`                         | POST         | New arrival step 1                                                  | ✅      | ❌ **500, empty body** — also for the collection's own example body |
+| `/animals/{id}/status`             | PATCH        | Release animal                                                      | ✅      | not tried (no stay could be created)                                |
+| `/kennels`                         | GET          | Arrival kennel picker, board, Master data → Kennels                 | ✅      | ✅ 200 (22 kennels KC1–KC3)                                         |
+| `/countries`                       | GET          | Arrival country picker                                              | ✅      | ✅ 200                                                              |
+| `/animals/{id}/exam`               | POST         | New arrival step 2                                                  | ✅      | not tried                                                           |
+| `/animals/{id}/exam`               | GET          | Profile exam card, timeline                                         | ✅      | ❌ 500 for a missing stay (collection says 404)                     |
+| `/arrival-draft/exam`              | PUT          | Exam draft autosave                                                 | ✅      | ❌ 500                                                              |
+| `/arrival-draft`                   | GET / DELETE | Draft restore / cleared after submit                                | ✅      | ❌ GET 500                                                          |
+| `/animals/{id}/inspections`        | POST         | Record inspection                                                   | ✅      | not tried                                                           |
+| `/animals/{id}/inspections?date=`  | GET          | Board, profile checks, timeline, sheet                              | ✅      | ❌ 500 for a missing stay                                           |
+| `/animals/inspections/{id}`        | GET          | (client function only)                                              | —       | ❌ 500                                                              |
+| `/observations`                    | POST         | New observation                                                     | ✅      | ✅ 400 validation message shown                                     |
+| `/observations/{id}`               | GET          | Poll AI processing status                                           | ✅      | ❌ 500                                                              |
+| `/animals/{id}/observations`       | GET          | Profile timeline                                                    | ✅      | ✅ 404 handled                                                      |
+| `/medication/animals?date=`        | GET          | Medication → Due today                                              | ✅      | ❌ **404, route not deployed** (shown on screen)                    |
+| `/animals/{id}/medication?date=`   | GET          | Due today rows, profile medication card                             | ✅      | ❌ 404                                                              |
+| `/medication/administrations`      | POST         | Record dose                                                         | ✅      | ❌ 404                                                              |
+| `/media/presign` + PUT `uploadUrl` | POST         | Observation photos/videos                                           | ✅      | ✅ 400 validation reached                                           |
 
 Not used by the UI (no matching screen, see §3): veterinarians, breeds, vaccine types, vet specialisations, push tokens. Their client functions exist in `src/services/api/api-client.ts`; the contract mock implements them.
 
@@ -208,4 +207,27 @@ Not used by the UI (no matching screen, see §3): veterinarians, breeds, vaccine
 3. **Dev tokens** last 900 s (collection: 3600) and return `refresh_token: ""`, so dev sessions end after 15 minutes.
 4. **Server errors**: `POST /animals`, `GET /arrival-draft`, `PUT /arrival-draft/exam`, `GET …/exam`, `GET …/inspections`, `GET /observations/{id}` return 500 with an empty body for the dev-token user; the medication routes return 404. These need a backend fix (or a valid AQC staff record for the dev-token user id).
 5. **NParks admins get 403 on `/animals`** — admins can't see animals, so kennel occupancy is hidden for them.
-6. `http://` URLs are redirected (307) to `https://`; the proxy passes the redirect to the browser, which then fails cross-origin. Use the `https://` URL.
+6. `http://` URLs are redirected (307) to `https://`. A plain Next.js rewrite passed that redirect to the browser, which then failed with a CORS error; the route-handler proxy now follows it on the server. Prefer the `https://` URL anyway.
+
+## 6. Re-audit against the collection (2026-11-13, second pass)
+
+The collection file (`docs/NParksPetHealth_API.postman_collection.json`, last modified 2026-11-13 09:15 SGT) was re-read request by request: method, path, query parameters (including disabled ones), path variables, headers, body and every response example.
+
+- **Endpoints:** the same 47 requests as in §5; none added, renamed or removed.
+- **Types:** every DTO and request body in `src/services/api/types.ts` matches the collection field by field (including `photoKeys` on exam findings, `durationSec`/`sortOrder` on observation media, epoch-ms `administeredAt`, `kind`/`message` on the medication 409, and `field` on the push-token 400).
+- **Paths and methods:** `src/services/api/api-endpoints.ts` and `api-client.ts` match all 47 requests. Note the two system lists differ in the collection itself: the arrival exam uses `respiratory`, daily inspections use `cardiorespiratory`; the mappers follow that.
+- **Query features:** the API has no pagination or sorting parameters. Filters used: `status`, `species`, `search` on `/animals`; `date` on inspections and medication; `isActive=true` on countries. Kennels, species and admins are loaded unfiltered so the screens can show inactive rows and tab counts.
+- **Unbound endpoints (unchanged):** veterinarians, breeds, vaccine types, vet specialisations (no screen in the design; breed can't be saved on a stay), `GET /animals/inspections/{id}` (the inspection sheet opens by animal + date + session, which `GET /animals/{id}/inspections?date=` serves; inspection ids are only referenced from health cases, which have no API), push tokens (mobile only), `deceased` status (no action in the design), presign `context: "exam"` (the exam form has no photo capture).
+- **No code changes were needed.**
+
+Live API, read-only GET probes (dev-token officer user 1 and NParks admin user 1):
+
+| Result              | Endpoints                                                                                                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200                 | `/animals` (empty), `/kennels`, `/countries`, `/admin/nparks-admins`, `/admin/veterinarians` (now returns data), species, breeds, vaccine types, vet specialisations (all empty) |
+| 404 (handled)       | `/animals/1`, `/animals/1/observations` ("Animal stay with id 1 not found.")                                                                                                     |
+| 404 (route missing) | `/medication/animals`, `/animals/1/medication`                                                                                                                                   |
+| 500                 | `/arrival-draft`, `/animals/1/exam`, `/animals/1/inspections`, `/observations/1`, `/animals/inspections/1`                                                                       |
+| 403                 | `/animals` as NParks admin                                                                                                                                                       |
+
+Same as the first pass, so the backend items in §5 still stand.
