@@ -243,3 +243,13 @@ test("OIDC: authorize → identity provider → /auth/callback → app", async (
   await page.waitForURL(/\/operations/)
   await expect(page.getByRole("button", { name: "Account menu" })).toContainText("Contractor 7")
 })
+
+test("sign-in button is ready again after signing out", async ({ page }) => {
+  await devLogin(page)
+  await page.getByRole("button", { name: "Account menu" }).click()
+  await page.getByRole("menuitem", { name: /Sign out/ }).click()
+  await page.waitForURL(/\/login/)
+  const button = page.getByRole("button", { name: "Sign in", exact: true })
+  await expect(button).toBeEnabled()
+  await expect(button).not.toHaveAttribute("aria-busy", "true")
+})

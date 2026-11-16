@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { ExternalLink } from "lucide-react"
@@ -39,6 +39,16 @@ export function ApiSignIn({ next }: { next: string | null }) {
   const [userType, setUserType] = useState<"aqc_staff" | "nparks_admin">("aqc_staff")
   const [role, setRole] = useState<AqcStaffRole>("officer")
   const [userId, setUserId] = useState("1")
+
+  // The login page is kept alive (hidden) after navigating away, so a finished
+  // sign-in would come back still "loading" after sign-out. Reset when hidden.
+  useEffect(
+    () => () => {
+      setPending(null)
+      setError(null)
+    },
+    []
+  )
 
   const provider = OIDC_PROVIDER[idp]
   const target = next && next.startsWith("/") && !next.startsWith("/login") ? next : "/operations"
