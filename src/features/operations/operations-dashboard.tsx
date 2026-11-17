@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
@@ -55,6 +55,8 @@ export function OperationsDashboard() {
   const [sort, setSort] = useState<{ key: UnwellSortKey; dir: SortDir }>({ key: "status", dir: "asc" })
   const [selected, setSelected] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [focusTick, setFocusTick] = useState(0)
+  const asideRef = useRef<HTMLDivElement>(null)
   const [obsOpen, setObsOpen] = useState(false)
 
   const inBlock = useMemo(
@@ -72,10 +74,22 @@ export function OperationsDashboard() {
   const counts = (f: UnwellFilter) => inBlock.filter((r) => r.filters.includes(f)).length
   const selectedRow = rows.find((r) => r.animal.id === selected) ?? rows[0] ?? null
 
+  // Wide screens (lg+) show the follow-up form in the side panel, so "Assign"
+  // selects the animal and moves focus to that form. The sheet is the
+  // narrow-screen version of the same panel (its content is hidden at lg+).
   const openAssign = (id: string) => {
     setSelected(id)
-    setSheetOpen(true)
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) setFocusTick((t) => t + 1)
+    else setSheetOpen(true)
   }
+
+  useEffect(() => {
+    if (!focusTick) return
+    const aside = asideRef.current
+    if (!aside) return
+    aside.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    aside.querySelector<HTMLElement>("#fu-assignee")?.focus({ preventScroll: true })
+  }, [focusTick, selected])
 
   const exportCsv = () => {
     downloadCsv(
@@ -275,13 +289,15 @@ export function OperationsDashboard() {
             </Panel>
 
             <Panel as="aside" className="hidden self-start p-5 lg:block">
-              {q.isPending ? (
-                <PanelSkeleton lines={8} className="p-0" />
-              ) : selectedRow ? (
-                <FollowUpPanel key={selectedRow.animal.id} row={selectedRow} canAssign={canAssign} />
-              ) : (
-                <EmptyState title="Nothing selected" description="Pick an animal to see its AI summary and assign a follow-up." />
-              )}
+              <div ref={asideRef}>
+                {q.isPending ? (
+                  <PanelSkeleton lines={8} className="p-0" />
+                ) : selectedRow ? (
+                  <FollowUpPanel key={selectedRow.animal.id} row={selectedRow} canAssign={canAssign} />
+                ) : (
+                  <EmptyState title="Nothing selected" description="Pick an animal to see its AI summary and assign a follow-up." />
+                )}
+              </div>
             </Panel>
           </div>
         </>

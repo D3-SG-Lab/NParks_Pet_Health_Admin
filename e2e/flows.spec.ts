@@ -109,4 +109,23 @@ test.describe("key workflows", () => {
     await page.getByPlaceholder("Search name or email").fill("j.ng")
     await expect(page.getByRole("row", { name: /J\. Ng/ })).toContainText("Invited")
   })
+
+  test("Assign on an unwell-animal row opens the follow-up form and assigns it", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await signIn(page, "J. Tan")
+    const rows = page.locator("main section").getByRole("button", { name: "Assign", exact: true })
+    await rows.nth(1).click()
+    // Wide screens use the side panel: no (hidden) sheet may cover the page.
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    const panel = page.locator("aside")
+    await expect(panel.locator("#fu-assignee")).toBeFocused()
+    await panel.locator("#fu-assignee").click()
+    await page.getByRole("option").first().click()
+    await panel.locator("#fu-action").fill("Recheck stool at PM inspection")
+    await panel.locator("#fu-due").click()
+    await page.getByRole("gridcell", { name: "25" }).first().click()
+    await panel.getByLabel("Due time").fill("09:00")
+    await panel.getByRole("button", { name: "Assign follow-up" }).click()
+    await expect(page.getByText(/Follow-up assigned to/)).toBeVisible()
+  })
 })
