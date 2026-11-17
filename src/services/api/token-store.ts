@@ -13,7 +13,11 @@ export interface StoredTokens {
   tokenType: string
   /** Epoch ms when the access token expires (from `expires_in`). */
   expiresAt: number
+  /** How the session started; refreshes keep it. */
+  source?: TokenSource
 }
+
+export type TokenSource = "dev" | "oidc"
 
 let memory: StoredTokens | null = null
 
@@ -28,12 +32,14 @@ export function getTokens(): StoredTokens | null {
   return memory
 }
 
-export function setTokens(res: TokenResponse): StoredTokens {
+export function setTokens(res: TokenResponse, source?: TokenSource): StoredTokens {
+  const keep = source ?? getTokens()?.source
   memory = {
     accessToken: res.access_token,
     refreshToken: res.refresh_token ?? "",
     tokenType: res.token_type || "Bearer",
     expiresAt: Date.now() + Math.max(0, res.expires_in) * 1000,
+    ...(keep ? { source: keep } : {}),
   }
   try {
     window.sessionStorage.setItem(KEY, JSON.stringify(memory))

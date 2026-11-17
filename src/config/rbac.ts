@@ -1,3 +1,5 @@
+import { DEV_FULL_ACCESS, isApiMode } from "@/services/api/config"
+import { getTokens } from "@/services/api/token-store"
 import type { Permission, Role } from "@/types/domain"
 
 /** Display names for roles (Users & roles screen, top bar). */
@@ -60,7 +62,18 @@ export const PERMISSION_MATRIX: { permission: Permission; label: string; roles: 
   },
 ]
 
+/**
+ * True while signed in with `POST /auth/dev-token` (API mode): the API gives dev
+ * tokens every permission, so the app unlocks every screen as well.
+ */
+export function hasDevFullAccess(): boolean {
+  if (!DEV_FULL_ACCESS || !isApiMode() || typeof window === "undefined") return false
+  return getTokens()?.source === "dev"
+}
+
+/** Permission check for the signed-in user's role (always true in a dev-token session). */
 export function roleHas(role: Role, permission: Permission): boolean {
+  if (hasDevFullAccess()) return true
   const row = PERMISSION_MATRIX.find((r) => r.permission === permission)
   return Boolean(row?.roles[role])
 }

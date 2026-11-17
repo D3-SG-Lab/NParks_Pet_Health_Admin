@@ -20,7 +20,7 @@ import { adminApi, authApi } from "../api/api-client"
 import { setSessionExpiredHandler } from "../api/axios-instance"
 import { OIDC_CALLBACK_PATH, OIDC_PROVIDER } from "../api/config"
 import { readClaims, type AccessClaims } from "../api/jwt"
-import { clearTokens, getTokens, setTokens } from "../api/token-store"
+import { clearTokens, getTokens, setTokens, type TokenSource } from "../api/token-store"
 import type { ApiUserType, AqcStaffRole, OidcProvider, TokenResponse } from "../api/types"
 import { appendAudit, write } from "../core"
 
@@ -36,9 +36,9 @@ function roleFor(claims: AccessClaims): Role {
 export const apiUserId = (claims: Pick<AccessClaims, "userType" | "sub">) => `api-${claims.userType ?? "user"}-${claims.sub}`
 
 /** Stores the tokens, resolves the user and starts the session. */
-async function startSession(tokens: TokenResponse, idpHint?: IdentityProvider): Promise<User> {
+async function startSession(tokens: TokenResponse, source: TokenSource, idpHint?: IdentityProvider): Promise<User> {
   if (!tokens.access_token) throw new ApiError("UNAUTHENTICATED", "The sign-in response had no access token.")
-  setTokens(tokens)
+  setTokens(tokens, source)
   let claims: AccessClaims
   let role: Role
   try {
@@ -105,7 +105,7 @@ export async function devSignIn(input: DevSignInInput): Promise<User> {
     userType: input.userType,
     ...(input.userType === "aqc_staff" ? { aqcStaffRole: input.aqcStaffRole ?? "officer" } : {}),
   })
-  return startSession(tokens, input.aqcStaffRole === "contractor" ? "contractor" : "officer")
+  return startSession(tokens, "dev", input.aqcStaffRole === "contractor" ? "contractor" : "officer")
 }
 
 interface PendingOidc {
@@ -143,7 +143,7 @@ export async function completeOidcSignIn(params: URLSearchParams): Promise<strin
   if (!pending || pending.state !== state)
     throw new ApiError("UNAUTHENTICATED", "The sign-in could not be verified (state mismatch). Start again.")
   const tokens = await authApi.callback({ provider: pending.provider, code, state, redirectUri: pending.redirectUri })
-  await startSession(tokens, pending.idp)
+  await startSession(tokens, "oidc", pending.idp)
   return pending.next && pending.next.startsWith("/") && !pending.next.startsWith("/login") ? pending.next : "/operations"
 }
 

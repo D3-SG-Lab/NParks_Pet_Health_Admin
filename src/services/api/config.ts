@@ -23,6 +23,13 @@ export function isApiMode(): boolean {
  */
 export const DEV_LOGIN_ENABLED = process.env.NEXT_PUBLIC_ENABLE_DEV_LOGIN !== "false"
 
+/**
+ * The API grants dev tokens every permission, so a dev-token session opens every
+ * screen in the app too (admin screens included), whatever role was picked.
+ * Set NEXT_PUBLIC_DEV_FULL_ACCESS=false to keep the normal role permissions.
+ */
+export const DEV_FULL_ACCESS = process.env.NEXT_PUBLIC_DEV_FULL_ACCESS !== "false"
+
 /** OIDC sign-in (`/auth/authorize` → IdP → `/auth/callback`). Off until NEXT_PUBLIC_ENABLE_OIDC_LOGIN=true. */
 export const OIDC_LOGIN_ENABLED = process.env.NEXT_PUBLIC_ENABLE_OIDC_LOGIN === "true"
 

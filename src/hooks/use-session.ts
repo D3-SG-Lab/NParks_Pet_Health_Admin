@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 
-import { ADMIN_NAV_ROLES, roleHas } from "@/config/rbac"
+import { ADMIN_NAV_ROLES, hasDevFullAccess, roleHas } from "@/config/rbac"
 import { sessionUser } from "@/services/auth"
 import { useSessionStore } from "@/stores/session-store"
 import type { Permission, User } from "@/types/domain"
@@ -34,5 +34,5 @@ export function usePermission(permission: Permission): boolean {
 
 export function useCanSeeAdminNav(): boolean {
   const { user } = useCurrentUser()
-  return Boolean(user && ADMIN_NAV_ROLES.includes(user.role))
+  return Boolean(user && (hasDevFullAccess() || ADMIN_NAV_ROLES.includes(user.role)))
 }

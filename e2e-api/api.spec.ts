@@ -242,6 +242,10 @@ test("OIDC: authorize → identity provider → /auth/callback → app", async (
   expect(url.searchParams.get("redirectUri")).toMatch(/\/auth\/callback$/)
   await page.waitForURL(/\/operations/)
   await expect(page.getByRole("button", { name: "Account menu" })).toContainText("Contractor 7")
+  // Full access is for dev-token sessions only: an IdP contractor keeps contractor permissions.
+  await page.goto("/users")
+  await expect(page.getByRole("heading", { name: /You don’t have access/ })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Add user" })).toHaveCount(0)
 })
 
 test("sign-in button is ready again after signing out", async ({ page }) => {
@@ -252,4 +256,23 @@ test("sign-in button is ready again after signing out", async ({ page }) => {
   const button = page.getByRole("button", { name: "Sign in", exact: true })
   await expect(button).toBeEnabled()
   await expect(button).not.toHaveAttribute("aria-busy", "true")
+})
+
+test("dev-token sessions open every admin screen, whatever role was picked", async ({ page }) => {
+  await devLogin(page, { role: "Contractor", id: "3" })
+  for (const name of ["Audit log", "Users & roles", "Master data"]) await expect(page.getByRole("link", { name })).toBeVisible()
+  // The app's own role guard lets the session in; the data calls are still up to the API
+  // (the contract mock enforces the collection's "NParksAdmin only" rule on /admin/*).
+  const guard = page.getByRole("heading", { name: /You don’t have access to (administration|the audit log)/ })
+  // Past the guard, the Users screen asks the API for the admin list.
+  const adminList = page.waitForRequest((r) => r.method() === "GET" && r.url().includes(`${API}/admin/nparks-admins`))
+  await page.goto("/users")
+  await adminList
+  await expect(guard).toHaveCount(0)
+  await page.goto("/audit")
+  await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible()
+  await expect(guard).toHaveCount(0)
+  await page.goto("/master-data?tab=species")
+  await expect(page.getByRole("button", { name: "Add species" })).toBeVisible()
+  await expect(guard).toHaveCount(0)
 })

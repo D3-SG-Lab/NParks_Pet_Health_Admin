@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { errorMessage } from "@/lib/errors"
-import { DEV_LOGIN_ENABLED, OIDC_LOGIN_ENABLED, OIDC_PROVIDER } from "@/services/api/config"
+import { DEV_FULL_ACCESS, DEV_LOGIN_ENABLED, OIDC_LOGIN_ENABLED, OIDC_PROVIDER } from "@/services/api/config"
 import type { AqcStaffRole } from "@/services/api/types"
 import { devSignIn, startOidcSignIn } from "@/services/auth"
 import type { IdentityProvider } from "@/types/domain"
@@ -122,6 +122,7 @@ export function ApiSignIn({ next }: { next: string | null }) {
       </Button>
       <p className="text-xs text-muted-foreground">
         Issues a token from <code className="font-mono">/auth/dev-token</code>. Works only while the API runs in Development.
+        {DEV_FULL_ACCESS ? " Dev-token sessions open every screen, including audit log, users & roles and master data." : null}
       </p>
     </form>
   )
