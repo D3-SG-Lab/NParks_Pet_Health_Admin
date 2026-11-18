@@ -21,6 +21,7 @@ import {
   blocksOf,
   checkFromInspections,
   numericId,
+  STAYING_STATUS,
   staffLabel,
   toAnimal,
   toInspection,
@@ -30,7 +31,7 @@ import {
 } from "./mappers"
 
 export async function getSessionBoard(date: string, session: Session): Promise<SessionBoard & { notices: string[] }> {
-  const [kennels, staying] = await Promise.all([referenceApi.kennels(), animalsApi.list({ status: "staying" })])
+  const [kennels, staying] = await Promise.all([referenceApi.kennels(), animalsApi.list({ status: STAYING_STATUS })])
   const byKennel = new Map(staying.map((s) => [s.kennelId, s]))
   const loads = await Promise.allSettled(staying.map((s) => inspectionsApi.list(s.id, date)))
   const inspections = new Map<number, DailyInspectionDto[]>()

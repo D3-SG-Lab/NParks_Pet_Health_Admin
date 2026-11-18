@@ -4,6 +4,8 @@
  * API-mode e2e tests. It implements ONLY the requests in
  * docs/NParksPetHealth_API.postman_collection.json, with the same request and
  * response shapes and status codes. Data lives in memory (restart = reset).
+ * Stays in quarantine use status "active-monitoring", like the live API (the
+ * collection documents "staying"; `?status=staying` is accepted as an alias).
  *
  *   node mock-api/server.mjs            # http://localhost:7999
  *   PORT=8000 TOKEN_TTL=60 node mock-api/server.mjs
@@ -184,7 +186,7 @@ function stayRow(id, name, kennelCode, species, sex, country, microchip, dob, ar
     dateOfBirth: dob,
     arrivalDate: addDays(today, arrivalOffset),
     releaseDate: null,
-    status: "staying",
+    status: "active-monitoring",
     createdBy: 5,
     createdAt: `${addDays(today, arrivalOffset)}T01:00:00Z`,
     updatedAt: `${addDays(today, arrivalOffset)}T01:00:00Z`,
@@ -237,6 +239,19 @@ db.inspections.push({
   recordedBy: 10,
   recordedAt: `${today}T00:05:00Z`,
 })
+// Seeded so Health cases / Review queue (derived from observations) have data.
+db.observations.push({
+  id: 900,
+  stayId: 2,
+  text: "Mochi scratching left ear, head shaking",
+  submittedBy: 10,
+  submittedAt: `${today}T00:20:00Z`,
+  source: "observation",
+  status: "ready",
+  aiUnavailable: false,
+  readyAt: `${today}T00:20:05Z`,
+  media: [],
+})
 db.schedules.push(
   {
     id: 10,
@@ -287,7 +302,7 @@ function medicationAnimal(stay) {
     dateOfBirth: stay.dateOfBirth,
     arrivalDate: stay.arrivalDate,
     releaseDate: stay.releaseDate,
-    status: stay.status === "staying" ? "active-monitoring" : stay.status,
+    status: stay.status,
     today: { arrivalExam: exam ? "done" : "due", amInspection: insp("AM"), pmInspection: insp("PM") },
   }
 }
@@ -501,7 +516,7 @@ route("POST", "/api/v1/animals", STAFF, ({ body, claims }) => {
   if (!k) return err(400, "Kennel not found.")
   const c = db.countries.find((x) => x.code === body.countryCode)
   if (!c) return err(400, "Country not found.")
-  if (db.stays.some((s) => s.status === "staying" && s.microchip === body.microchip))
+  if (db.stays.some((s) => s.status === "active-monitoring" && s.microchip === body.microchip))
     return err(409, "An active stay already exists for this microchip.")
   const now = utcNow()
   const stay = {
@@ -518,7 +533,7 @@ route("POST", "/api/v1/animals", STAFF, ({ body, claims }) => {
     dateOfBirth: body.dateOfBirth ?? null,
     arrivalDate: body.arrivalDate,
     releaseDate: null,
-    status: "staying",
+    status: "active-monitoring",
     createdBy: Number(claims.sub),
     createdAt: now,
     updatedAt: now,
@@ -539,7 +554,7 @@ route("GET", "/api/v1/animals", STAFF, ({ query }) => {
   return {
     body: db.stays.filter(
       (s) =>
-        (!query.status || s.status === query.status) &&
+        (!query.status || s.status === (query.status === "staying" ? "active-monitoring" : query.status)) &&
         (!query.species || s.species === query.species) &&
         (!q || s.name.toLowerCase().includes(q) || s.microchip.includes(q))
     ),
@@ -550,7 +565,7 @@ route("PATCH", "/api/v1/animals/:id/status", STAFF, ({ params, body }) => {
   if (!s) return err(404, "Animal stay not found.")
   if (!["released", "deceased"].includes(body.status)) return err(400, "status must be 'released' or 'deceased'.")
   if (body.status === "released" && !body.releaseDate) return err(400, "releaseDate is required when status is 'released'.")
-  if (s.status !== "staying") return err(409, "Animal stay is already released or deceased.")
+  if (s.status !== "active-monitoring") return err(409, "Animal stay is already released or deceased.")
   s.status = body.status
   s.releaseDate = body.releaseDate ?? null
   s.updatedAt = utcNow()
@@ -616,7 +631,8 @@ route("POST", "/api/v1/animals/:id/inspections", STAFF, ({ params, body, claims 
   const s = db.stays.find((x) => x.id === Number(params.id))
   if (!s) return err(404, "Animal stay not found.")
   if (!["AM", "PM"].includes(body.session)) return err(400, "Session must be AM or PM.")
-  if (s.status !== "staying" || !db.exams.some((e) => e.stayId === s.id)) return err(409, "The stay must be in active-monitoring status.")
+  if (s.status !== "active-monitoring" || !db.exams.some((e) => e.stayId === s.id))
+    return err(409, "The stay must be in active-monitoring status.")
   if (db.inspections.some((i) => i.stayId === s.id && i.inspectionDate === body.inspectionDate && i.session === body.session))
     return err(409, `${body.session} inspection already recorded for this stay on ${body.inspectionDate}.`)
   const insp = {
@@ -678,7 +694,7 @@ route("GET", "/api/v1/animals/:id/observations", STAFF, ({ params }) => {
 route("GET", "/api/v1/medication/animals", STAFF, ({ query }) => {
   if (!query.date) return err(400, "Query parameter 'date' is required (YYYY-MM-DD).")
   const rows = db.stays
-    .filter((s) => s.status === "staying")
+    .filter((s) => s.status === "active-monitoring")
     .map((s) => {
       const slots = slotsFor(s.id, query.date)
       const scheduleCount = new Set(slots.map((x) => x.scheduleId)).size

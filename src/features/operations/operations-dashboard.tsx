@@ -22,12 +22,13 @@ import { NewObservationDialog } from "@/features/observations/new-observation-di
 import { recordAnimalExport } from "@/services/animals"
 import { getDashboard, type UnwellFilter, type UnwellRow } from "@/services/dashboard"
 import { getReferenceData } from "@/services/reference"
+import { isApiMode } from "@/services/api/config"
 
 import { FollowUpPanel } from "./follow-up-panel"
 import { UNWELL_STATUS, UnwellCards, UnwellTable, type UnwellSortKey } from "./unwell-table"
-import { MockDataBanner } from "@/components/common/api-banners"
+import { ApiNotices, DerivedDataBanner, MockDataBanner } from "@/components/common/api-banners"
 
-const STATUS_RANK = { needs_review: 0, open: 1, monitoring: 2 } as const
+const STATUS_RANK = { needs_review: 0, abnormal: 1, open: 2, monitoring: 3 } as const
 
 function sortRows(rows: UnwellRow[], sort: { key: UnwellSortKey; dir: SortDir }): UnwellRow[] {
   const dir = sort.dir === "asc" ? 1 : -1
@@ -44,10 +45,14 @@ function sortRows(rows: UnwellRow[], sort: { key: UnwellSortKey; dir: SortDir })
 /** Operations dashboard (FE-005 / FE-021, Admin_Design.pdf p.1 and p.16). */
 export function OperationsDashboard() {
   const router = useRouter()
-  const canAssign = usePermission("cases")
+  const canAssignRole = usePermission("cases")
   const canArrive = usePermission("arrival")
   const canRecord = usePermission("record")
   const q = useQuery({ queryKey: ["dashboard"], queryFn: getDashboard })
+  // API mode: the list comes from `GET /animals?status=active-monitoring`; follow-ups
+  // have no endpoint, so assigning is off for these rows.
+  const live = isApiMode()
+  const canAssign = canAssignRole && !live
   const ref = useQuery({ queryKey: ["reference"], queryFn: getReferenceData })
 
   const [filter, setFilter] = useState<UnwellFilter>("open")
@@ -93,8 +98,8 @@ export function OperationsDashboard() {
 
   const exportCsv = () => {
     downloadCsv(
-      "unwell-animals",
-      ["Kennel", "Animal", "Species", "Status", "AI summary", "Assigned", "Next action", "Case"],
+      live ? "animals-under-monitoring" : "unwell-animals",
+      ["Kennel", "Animal", "Species", "Status", live ? "Today’s checks" : "AI summary", "Assigned", "Next action", "Case"],
       rows.map((r) => [
         r.animal.kennelCode,
         r.animal.name,
@@ -106,7 +111,7 @@ export function OperationsDashboard() {
         r.caseId ?? "",
       ])
     )
-    void recordAnimalExport(null, `Unwell animals · CSV · ${rows.length} rows`, rows.length)
+    void recordAnimalExport(null, `${live ? "Animals under monitoring" : "Unwell animals"} · CSV · ${rows.length} rows`, rows.length)
   }
 
   const c = q.data?.counts
@@ -139,7 +144,15 @@ export function OperationsDashboard() {
           </>
         }
       />
-      <MockDataBanner what="The operations dashboard (counts, unwell animals, alerts and follow-ups)" />
+      {live ? (
+        <DerivedDataBanner>
+          Every count and the animal list come from the API. Open cases and Needs review are built from live inspections and observations
+          (see Health cases and Review queue). Assigning follow-ups has no endpoint yet, so it is turned off.
+        </DerivedDataBanner>
+      ) : (
+        <MockDataBanner what="The operations dashboard (counts, unwell animals, alerts and follow-ups)" />
+      )}
+      <ApiNotices notices={q.data?.notices} />
 
       {q.isError ? (
         <Panel>
@@ -189,10 +202,10 @@ export function OperationsDashboard() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
             <Panel className="min-w-0 overflow-hidden">
               <PanelHeader
-                title="Unwell animals"
+                title={live ? "Animals under monitoring" : "Unwell animals"}
                 actions={
                   <FilterChips
-                    ariaLabel="Filter unwell animals"
+                    ariaLabel={live ? "Filter animals under monitoring" : "Filter unwell animals"}
                     value={filter}
                     onChange={setFilter}
                     options={[
@@ -225,7 +238,7 @@ export function OperationsDashboard() {
                   <Table>
                     <THead>
                       <tr>
-                        {["Animal", "Status", "AI summary", "Assigned", "Next action", "Action"].map((h) => (
+                        {["Animal", "Status", live ? "Today’s checks" : "AI summary", "Assigned", "Next action", "Action"].map((h) => (
                           <Th key={h}>{h}</Th>
                         ))}
                       </tr>
@@ -238,10 +251,12 @@ export function OperationsDashboard() {
               ) : rows.length === 0 ? (
                 <div className="border-t border-border">
                   <EmptyState
-                    title="No unwell animals"
+                    title={live ? "No animals under monitoring" : "No unwell animals"}
                     description={
                       filter === "open" && block === "all"
-                        ? "Every animal is healthy right now."
+                        ? live
+                          ? "No animal has status active-monitoring in the API."
+                          : "Every animal is healthy right now."
                         : `Nothing matches “${filter === "open" ? "Open" : filter === "needs_review" ? "Needs review" : filter === "last_7_days" ? "Last 7 days" : "Assigned to me"}”${block !== "all" ? ` in ${block}` : ""}.`
                     }
                     action={
@@ -271,6 +286,8 @@ export function OperationsDashboard() {
                       sort={sort}
                       onSort={setSort}
                       canAssign={canAssign}
+                      summaryHeader={live ? "Today’s checks" : undefined}
+                      assignHint={live ? "Follow-ups have no API endpoint yet" : undefined}
                     />
                   </div>
                   <div className="border-t border-border md:hidden">
@@ -293,7 +310,7 @@ export function OperationsDashboard() {
                 {q.isPending ? (
                   <PanelSkeleton lines={8} className="p-0" />
                 ) : selectedRow ? (
-                  <FollowUpPanel key={selectedRow.animal.id} row={selectedRow} canAssign={canAssign} />
+                  <FollowUpPanel key={selectedRow.animal.id} row={selectedRow} canAssign={canAssign} live={live} />
                 ) : (
                   <EmptyState title="Nothing selected" description="Pick an animal to see its AI summary and assign a follow-up." />
                 )}
@@ -310,7 +327,13 @@ export function OperationsDashboard() {
             <SheetDescription className="sr-only">AI summary and follow-up form for the selected animal</SheetDescription>
           </SheetHeader>
           {selectedRow ? (
-            <FollowUpPanel key={selectedRow.animal.id} row={selectedRow} canAssign={canAssign} onAssigned={() => setSheetOpen(false)} />
+            <FollowUpPanel
+              key={selectedRow.animal.id}
+              row={selectedRow}
+              canAssign={canAssign}
+              live={live}
+              onAssigned={() => setSheetOpen(false)}
+            />
           ) : null}
         </SheetContent>
       </Sheet>

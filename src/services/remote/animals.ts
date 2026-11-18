@@ -35,6 +35,8 @@ import {
   toInspection,
   toKennel,
   unknownCheck,
+  STAYING_STATUS,
+  isStaying,
 } from "./mappers"
 import { medicationTimeline, slotsToCards } from "./medication"
 
@@ -96,7 +98,7 @@ export async function listAnimals(params: AnimalListParams) {
     species: params.species && params.species !== "all" ? speciesEnum(params.species) : undefined,
     search: params.search?.trim() || undefined,
   }
-  const tabStatus: StayStatusDto | undefined = params.tab === "released" ? undefined : "staying"
+  const tabStatus: StayStatusDto | undefined = params.tab === "released" ? undefined : STAYING_STATUS
   // Rows use the API's status/species/search filters; the second call gives the tab counts.
   const [rowsDto, allDto] = await Promise.all([animalsApi.list({ ...filters, status: tabStatus }), animalsApi.list(filters)])
   const all = allDto.map((d) => toAnimal(d))
@@ -168,7 +170,7 @@ export async function getAnimal(id: string): Promise<AnimalDetail> {
   const [examRes, inspRes, medRes] = await Promise.allSettled([
     loadExam(stayId),
     inspectionsApi.list(stayId),
-    stay.status === "staying" ? medicationApi.day(stayId, today) : Promise.resolve(null),
+    isStaying(stay.status) ? medicationApi.day(stayId, today) : Promise.resolve(null),
   ])
   const notices: string[] = []
   const examOut = examRes.status === "fulfilled" ? examRes.value : { exam: null, failed: true }
@@ -221,7 +223,7 @@ export async function getTimeline(id: string, params: { type?: TimelineType | "a
     loadExam(stayId),
     inspectionsApi.list(stayId),
     observationsApi.listForStay(stayId),
-    stay.status === "staying" ? medicationApi.day(stayId, today) : Promise.resolve(null),
+    isStaying(stay.status) ? medicationApi.day(stayId, today) : Promise.resolve(null),
   ])
   const entries: TimelineEntry[] = []
   const failed: string[] = []
@@ -306,9 +308,9 @@ export async function getTimeline(id: string, params: { type?: TimelineType | "a
 // Arrival (POST /animals) & reference data
 // ---------------------------------------------------------------------------
 
-/** Active kennels without a staying animal (`GET /kennels?isActive=true` + `GET /animals?status=staying`). */
+/** Active kennels without a staying animal (`GET /kennels?isActive=true` + `GET /animals?status=active-monitoring`). */
 export async function availableKennels(): Promise<(Kennel & { apiId: number })[]> {
-  const [kennels, staying] = await Promise.all([referenceApi.kennels(true), animalsApi.list({ status: "staying" })])
+  const [kennels, staying] = await Promise.all([referenceApi.kennels(true), animalsApi.list({ status: STAYING_STATUS })])
   const occupied = new Set(staying.map((s) => s.kennelId))
   return kennels
     .filter((k) => !occupied.has(k.id))
@@ -400,12 +402,12 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
       kind: "animal" as const,
       id: a.id,
       title: `${a.kennelCode} · ${a.name}`,
-      subtitle: `${speciesName(a.speciesId)} · ${d.status === "staying" ? "Staying" : d.status === "released" ? "Released" : "Deceased"} · MC …${a.microchip.slice(-4)}`,
+      subtitle: `${speciesName(a.speciesId)} · ${isStaying(d.status) ? "Staying" : d.status === "released" ? "Released" : "Deceased"} · MC …${a.microchip.slice(-4)}`,
       href: `/animals/${a.id}`,
     }
   })
 }
 
 export async function countStaying(): Promise<number> {
-  return (await animalsApi.list({ status: "staying" })).length
+  return (await animalsApi.list({ status: STAYING_STATUS })).length
 }

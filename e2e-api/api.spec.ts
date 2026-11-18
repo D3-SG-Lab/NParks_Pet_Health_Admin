@@ -39,9 +39,9 @@ test("dev sign-in reads identity from the token; mock-only screens are labelled"
   const body = await sent(page, "POST", /^\/auth\/dev-token$/, () => devLogin(page))
   expect(body).toEqual({ userId: 1, userType: "aqc_staff", aqcStaffRole: "officer" })
   await expect(page.getByRole("button", { name: "Account menu" })).toContainText("Officer 1")
+  await page.goto("/audit")
   await expect(page.getByText(/Demo data · no API yet/)).toBeVisible()
-  await page.goto("/cases")
-  await expect(page.getByText(/Health cases has no endpoint/)).toBeVisible()
+  await expect(page.getByText(/The audit log has no endpoint/)).toBeVisible()
 })
 
 test("animals list, server-side search and profile come from the API", async ({ page }) => {
@@ -275,4 +275,50 @@ test("dev-token sessions open every admin screen, whatever role was picked", asy
   await page.goto("/master-data?tab=species")
   await expect(page.getByRole("button", { name: "Add species" })).toBeVisible()
   await expect(guard).toHaveCount(0)
+})
+
+test("operations dashboard takes counts and the animal list from the API", async ({ page }) => {
+  const staying = page.waitForRequest((r) => r.method() === "GET" && r.url().includes(`${API}/animals?status=active-monitoring`))
+  await devLogin(page)
+  await staying
+  await expect(page.getByText(/Every count and the animal list come from the API/)).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Animals under monitoring" })).toBeVisible()
+  // Rows are the contract mock's active-monitoring stays (earlier tests add and release some);
+  // Buddy's seeded AM check has an abnormal eye finding and soft stool.
+  const table = page.getByRole("table")
+  await expect(table.getByRole("link", { name: "Buddy" })).toBeVisible()
+  const buddy = table.getByRole("row").filter({ hasText: "Buddy" })
+  await expect(buddy).toContainText("Abnormal check")
+  await expect(buddy).toContainText("Eyes abnormal · stool soft")
+  await expect(buddy).toContainText("Review AM findings")
+  await expect(buddy.getByRole("button", { name: "Assign" })).toBeDisabled()
+})
+
+test("health cases are derived from live inspections and observations (read-only)", async ({ page }) => {
+  await devLogin(page)
+  await page.goto("/cases")
+  await expect(page.getByText(/Live data · read-only\./)).toBeVisible()
+  const list = page.getByRole("list", { name: "Health cases" })
+  // Buddy: abnormal AM check (eyes, soft stool) and no observations → Open.
+  await expect(list.getByRole("button", { name: /Buddy.*Eyes abnormal · stool soft.*STAY-1/ })).toBeVisible()
+  // Mochi: a seeded observation awaiting review → Needs review.
+  await list.getByRole("button", { name: /Mochi/ }).click()
+  await expect(page).toHaveURL(/id=STAY-2/)
+  await expect(page.getByText("Mochi scratching left ear, head shaking").first()).toBeVisible()
+  await expect(page.getByText(/Assigning, follow-ups, notes and closing have no endpoint/)).toBeVisible()
+  await expect(page.getByRole("button", { name: /Close case/ })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Post note" })).toHaveCount(0)
+})
+
+test("review queue lists live observations without triage actions", async ({ page }) => {
+  await devLogin(page)
+  await page.goto("/review")
+  await expect(page.getByText(/Live data · read-only\./)).toBeVisible()
+  const queue = page.getByRole("list", { name: "Observations to triage" })
+  await queue.getByRole("button", { name: /Mochi scratching left ear/ }).click()
+  await expect(page.getByText("No AI result").first()).toBeVisible()
+  await expect(page.getByRole("link", { name: /Case STAY-2/ })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Confirm triage" })).toHaveCount(0)
+  await page.getByRole("link", { name: /Case STAY-2/ }).click()
+  await expect(page).toHaveURL(/\/cases\?id=STAY-2/)
 })

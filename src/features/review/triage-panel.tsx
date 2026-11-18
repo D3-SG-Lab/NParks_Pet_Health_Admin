@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowLeft, Search, Sparkles } from "lucide-react"
+import { ArrowLeft, ChevronRight, Search, Sparkles } from "lucide-react"
 import { z } from "zod"
 
 import { AnimalAvatar } from "@/components/common/avatars"
@@ -394,6 +395,101 @@ export function TriagePanel({
         index={viewer}
         onIndexChange={setViewer}
         title={selected ? `${selected.animal.kennelCode} ${selected.animal.name}` : "Unmatched observation"}
+        subtitle={(m) => `${fmtDateTime(m.at)} · ${item.reporterName} · Observation ${o.id}`}
+      />
+    </div>
+  )
+}
+
+/**
+ * API mode: a live observation in the review queue. The API returns no AI match,
+ * signs or routing and has no triage endpoint, so this shows the observation, its
+ * animal and links to the animal record and its derived case.
+ */
+export function LiveObservationPanel({ item, onBack }: { item: QueueItem; onBack?: () => void }) {
+  const o = item.observation
+  const chip = reasonChip(item)
+  const a = item.suggestedAnimal
+  const [viewer, setViewer] = useState<number | null>(null)
+  return (
+    <div>
+      <div className="space-y-3 border-b border-border p-5">
+        {onBack ? (
+          <Button variant="ghost" size="sm" className="-ml-2 lg:hidden" onClick={onBack}>
+            <ArrowLeft /> Queue
+          </Button>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusChip tone={chip.tone} dot={chip.dot}>
+            {chip.label}
+          </StatusChip>
+          <span className="text-xs text-muted-foreground">
+            Observation {o.id} · {fmtShortDateTime(o.createdAt)} · {reporterLabel(item)}
+          </span>
+        </div>
+        <p className="text-lg leading-snug font-medium text-foreground">“{o.text}”</p>
+        {o.media.length ? (
+          <div className="flex flex-wrap gap-2">
+            {o.media.map((m, i) => (
+              <MediaThumb key={m.id} media={m} onClick={() => setViewer(i)} className="size-24" />
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="space-y-4 p-5">
+        <div className="rounded-xl border border-ai-border bg-ai-soft p-3.5">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-ai">
+            <Sparkles className="size-4" aria-hidden /> AI analysis
+          </p>
+          <p className="mt-1.5 text-[13px] text-ai/90">
+            {o.aiStatus === "processing"
+              ? "Still processing on the server. The API doesn’t return the AI match, signs or routing suggestion yet."
+              : "Processing finished, but the API doesn’t return the AI match, signs or routing suggestion yet."}
+          </p>
+        </div>
+
+        {a ? (
+          <div>
+            <SectionLabel>Animal</SectionLabel>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
+              <span className="flex min-w-0 items-center gap-3">
+                <AnimalAvatar name={a.name} speciesId={a.speciesId} size="sm" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">
+                    {a.kennelCode} · {a.name}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {item.candidates[0]?.speciesName ?? ""} · {a.sex} · {fmtAge(a.dateOfBirth)} · reported by staff
+                  </span>
+                </span>
+              </span>
+              <span className="flex gap-1">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/animals/${a.id}`}>Open record</Link>
+                </Button>
+                {item.caseId ? (
+                  <Button variant="soft" size="sm" asChild>
+                    <Link href={`/cases?id=${encodeURIComponent(item.caseId)}`}>
+                      Case {item.caseId} <ChevronRight />
+                    </Link>
+                  </Button>
+                ) : null}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <p className="rounded-xl border border-border bg-subtle px-4 py-3 text-sm text-muted-foreground">
+          Confirming or skipping triage needs an endpoint the NParksPetHealth API doesn’t have yet.
+        </p>
+      </div>
+
+      <EvidenceViewer
+        items={o.media}
+        index={viewer}
+        onIndexChange={setViewer}
+        title={a ? `${a.kennelCode} ${a.name}` : "Observation"}
         subtitle={(m) => `${fmtDateTime(m.at)} · ${item.reporterName} · Observation ${o.id}`}
       />
     </div>

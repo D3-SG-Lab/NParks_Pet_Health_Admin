@@ -34,17 +34,24 @@ type FormValues = z.infer<typeof schema>
 export function FollowUpPanel({
   row,
   canAssign,
+  live = false,
   className,
   onAssigned,
 }: {
   row: UnwellRow
   canAssign: boolean
+  /** API mode row: the summary is today's inspections and follow-ups have no endpoint. */
+  live?: boolean
   className?: string
   onAssigned?: () => void
 }) {
   const router = useRouter()
   const { animal } = row
-  const assignees = useQuery({ queryKey: ["assignees", animal.id], queryFn: () => listAssignees(animal.id) })
+  const assignees = useQuery({
+    queryKey: ["assignees", animal.id],
+    queryFn: () => listAssignees(animal.id),
+    enabled: canAssign,
+  })
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { assigneeId: row.assigneeId ?? "", action: "", dueAt: "" },
@@ -71,7 +78,8 @@ export function FollowUpPanel({
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-semibold">{animal.name}</p>
           <p className="text-[13px] text-muted-foreground">
-            {animal.kennelCode} · {row.speciesName} · Day {row.stay.day} of {row.stay.total}
+            {animal.kennelCode} · {row.speciesName} · Day {row.stay.day}
+            {animal.releaseDate ? ` of ${row.stay.total}` : ""}
           </p>
         </div>
         <Link
@@ -82,7 +90,11 @@ export function FollowUpPanel({
         </Link>
       </div>
 
-      <AiSummaryCard summary={row.summary} onCite={() => router.push(`/animals/${animal.id}`)} />
+      <AiSummaryCard
+        title={live ? "Today’s checks" : undefined}
+        summary={row.summary}
+        onCite={() => router.push(`/animals/${animal.id}`)}
+      />
 
       {canAssign ? (
         <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} noValidate className="space-y-4">
@@ -138,7 +150,9 @@ export function FollowUpPanel({
         </form>
       ) : (
         <p className="rounded-xl border border-border bg-subtle px-4 py-3 text-sm text-muted-foreground">
-          Your role can view this animal but can’t assign follow-ups.
+          {live
+            ? "Assigning follow-ups has no endpoint in the NParksPetHealth API yet."
+            : "Your role can view this animal but can’t assign follow-ups."}
         </p>
       )}
     </div>

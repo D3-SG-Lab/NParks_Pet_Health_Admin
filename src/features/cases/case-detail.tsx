@@ -85,7 +85,7 @@ function AssignSelect({ detail, canEdit }: { detail: CaseDetail; canEdit: boolea
 
 function Notes({ detail }: { detail: CaseDetail }) {
   const user = useUser()
-  const canPost = user.role !== "auditor" && user.role !== "admin"
+  const canPost = user.role !== "auditor" && user.role !== "admin" && !detail.live
   const form = useForm<NoteValues>({ resolver: zodResolver(noteSchema), defaultValues: { text: "" } })
   const mutation = useServiceMutation((v: NoteValues) => addCaseNote(detail.case.id, v.text), {
     success: "Note posted",
@@ -138,7 +138,7 @@ function Notes({ detail }: { detail: CaseDetail }) {
 
 /** Right-hand detail of the Health cases workbench (FE-016, p.4). */
 export function CaseDetailPanel({ caseId, onBack }: { caseId: string; onBack: () => void }) {
-  const canEdit = usePermission("cases")
+  const canEditRole = usePermission("cases")
   const q = useQuery({ queryKey: ["case", caseId], queryFn: () => getCase(caseId) })
   const ref = useQuery({ queryKey: ["reference"], queryFn: getReferenceData })
   const [closeOpen, setCloseOpen] = useState(false)
@@ -165,6 +165,8 @@ export function CaseDetailPanel({ caseId, onBack }: { caseId: string; onBack: ()
 
   const d = q.data
   const c = d.case
+  // Live (API-derived) cases are read-only: the API has no case endpoints.
+  const canEdit = canEditRole && !d.live
   const status = CASE_STATUS[c.status]
   const userName = (id: string) => ref.data?.users.find((u) => u.id === id)?.name ?? ""
   const mediaSource = (m: MediaRef) => d.linked.find((l) => l.media.some((x) => x.id === m.id))?.id
@@ -233,7 +235,8 @@ export function CaseDetailPanel({ caseId, onBack }: { caseId: string; onBack: ()
             <span>
               <span className="block text-sm font-semibold text-foreground group-hover:underline">{d.animal.name}</span>
               <span className="block font-mono text-xs text-muted-foreground">
-                {d.animal.kennelCode} · {d.speciesName} · Day {d.stay.day} of {d.stay.total}
+                {d.animal.kennelCode} · {d.speciesName} · Day {d.stay.day}
+                {d.animal.releaseDate ? ` of ${d.stay.total}` : ""}
               </span>
             </span>
           </Link>
@@ -250,7 +253,18 @@ export function CaseDetailPanel({ caseId, onBack }: { caseId: string; onBack: ()
           </div>
         ) : null}
 
-        <AiSummaryCard title="Case summary · AI" summary={d.summary} variant="inline" onCite={cite} />
+        <AiSummaryCard
+          title={d.live ? "Latest findings" : "Case summary · AI"}
+          summary={d.summary}
+          variant={d.live ? "list" : "inline"}
+          onCite={cite}
+        />
+        {d.live ? (
+          <p className="rounded-xl border border-border bg-subtle px-4 py-3 text-sm text-muted-foreground">
+            Built from this animal’s inspections and observations. Assigning, follow-ups, notes and closing have no endpoint in the
+            NParksPetHealth API yet.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid border-t border-border lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">

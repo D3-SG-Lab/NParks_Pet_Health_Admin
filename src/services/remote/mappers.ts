@@ -35,10 +35,17 @@ import type {
   MentationDto,
   StaySex,
   StaySpecies,
+  StayStatusDto,
   Stool,
   SubmitInspectionRequest,
   Urine,
 } from "../api/types"
+
+/** Status used to query animals in quarantine (`GET /animals?status=`). The live API uses "active-monitoring". */
+export const STAYING_STATUS: StayStatusDto = "active-monitoring"
+
+/** True for an animal still in quarantine ("active-monitoring" on the live API, "staying" in the collection). */
+export const isStaying = (status: string) => status === "active-monitoring" || status === "staying"
 
 // ---------------------------------------------------------------------------
 // Ids
@@ -93,7 +100,7 @@ export const sexEnum = (s: Sex): StaySex => (s === "M" ? "Male" : s === "F" ? "F
  * enforces the real rule when an inspection is submitted.
  */
 export function toAnimal(dto: AnimalStayDto, hasExam?: boolean): Animal {
-  const released = dto.status !== "staying"
+  const released = !isStaying(dto.status)
   return {
     id: String(dto.id),
     name: dto.name,

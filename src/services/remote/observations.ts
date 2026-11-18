@@ -14,7 +14,7 @@ import type { Animal, Observation } from "@/types/domain"
 import { animalsApi, mediaApi, observationsApi } from "../api/api-client"
 import type { ObservationDto, ObservationMediaInput } from "../api/types"
 import type { NewObservationInput, ObservationResult } from "../observations"
-import { STAY_SPECIES, numericId, staffRef, toAnimal } from "./mappers"
+import { STAY_SPECIES, STAYING_STATUS, numericId, staffRef, toAnimal } from "./mappers"
 
 const PRESIGN_BATCH = 5 // "Maximum 5 items per request."
 const POLL_MS = 1_500
@@ -110,7 +110,7 @@ export async function getObservation(id: string): Promise<Observation> {
 
 export async function searchActiveAnimals(query: string): Promise<{ animal: Animal; speciesName: string }[]> {
   const q = query.trim()
-  const rows = await animalsApi.list({ status: "staying", search: q || undefined })
+  const rows = await animalsApi.list({ status: STAYING_STATUS, search: q || undefined })
   return rows
     .sort((a, b) => a.kennelCode.localeCompare(b.kennelCode, undefined, { numeric: true }))
     .slice(0, 8)

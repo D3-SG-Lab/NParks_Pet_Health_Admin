@@ -23,6 +23,7 @@ import { checkInfo, inspectionFor, inspectionSummary, type CheckInfo } from "./d
 import { createObservationRecord, processObservation } from "./observations"
 import { isApiMode } from "./api/config"
 import * as remote from "./remote/inspections"
+import { invalidateLiveHealth } from "./remote/health"
 
 export interface BoardTile {
   kennel: Kennel
@@ -194,7 +195,7 @@ export interface RecordInspectionInput {
 export async function recordInspection(
   input: RecordInspectionInput
 ): Promise<{ inspection: Inspection; observationId: string | null; edited: boolean }> {
-  if (isApiMode()) return remote.recordInspection(input)
+  if (isApiMode()) return remote.recordInspection(input).finally(invalidateLiveHealth)
   await delay()
   const db = getDb()
   const a = db.animals.find((x) => x.id === input.animalId)

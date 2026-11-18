@@ -62,7 +62,8 @@ export function CaseReport() {
               {c.id} · {c.title}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {d.animal.kennelCode} {d.animal.name} · {d.speciesName} · Day {d.stay.day} of {d.stay.total} · MC {d.animal.microchip}
+              {d.animal.kennelCode} {d.animal.name} · {d.speciesName} · Day {d.stay.day}
+              {d.animal.releaseDate ? ` of ${d.stay.total}` : ""} · MC {d.animal.microchip}
             </p>
           </div>
           <div className="text-right text-xs text-muted-foreground">
@@ -95,7 +96,7 @@ export function CaseReport() {
         </dl>
         {c.status === "closed" && c.closeNote ? <p className="text-sm">Closing note: {c.closeNote}</p> : null}
 
-        <AiSummaryCard title="Case summary · AI" summary={d.summary} variant="list" />
+        <AiSummaryCard title={d.live ? "Latest findings" : "Case summary · AI"} summary={d.summary} variant="list" />
 
         <section>
           <SectionLabel>Follow-up actions</SectionLabel>

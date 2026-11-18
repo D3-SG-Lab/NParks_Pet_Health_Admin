@@ -9,21 +9,19 @@ import type { Species } from "@/types/domain"
 import { animalsApi, masterDataApi, referenceApi } from "../api/api-client"
 import type { AnimalStayDto } from "../api/types"
 import type { BlockSummary, KennelRow, SpeciesRow } from "../master-data"
-import { sessionUser } from "../auth"
-import { blocksOf, numericId, toAnimal, toKennel } from "./mappers"
+import { blocksOf, numericId, STAYING_STATUS, toAnimal, toKennel } from "./mappers"
 
-/** Occupancy needs `GET /animals` (AQC staff only — NParks admins get 403). */
+/** Occupancy comes from `GET /animals`; if the account can't read stays (403), it is left out. */
 async function stayingAnimals(): Promise<AnimalStayDto[] | null> {
-  if (sessionUser()?.role === "admin") return null
   try {
-    return await animalsApi.list({ status: "staying" })
+    return await animalsApi.list({ status: STAYING_STATUS })
   } catch (e) {
     if (isApiError(e) && (e.status === 403 || e.status === 401)) return null
     throw e
   }
 }
 
-const OCCUPANCY_NOTICE = "Kennel occupancy isn’t shown: animal stays are only readable by AQC staff accounts."
+const OCCUPANCY_NOTICE = "Kennel occupancy isn’t shown: this account can’t read animal stays."
 
 export async function listKennelBlocks(): Promise<BlockSummary[] & { notices?: string[] }> {
   const [kennels, staying] = await Promise.all([referenceApi.kennels(), stayingAnimals()])

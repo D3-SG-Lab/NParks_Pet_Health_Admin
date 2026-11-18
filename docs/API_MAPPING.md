@@ -208,6 +208,7 @@ Not used by the UI (no matching screen, see §3): veterinarians, breeds, vaccine
 4. **Server errors**: `POST /animals`, `GET /arrival-draft`, `PUT /arrival-draft/exam`, `GET …/exam`, `GET …/inspections`, `GET /observations/{id}` return 500 with an empty body for the dev-token user; the medication routes return 404. These need a backend fix (or a valid AQC staff record for the dev-token user id).
 5. **NParks admins get 403 on `/animals`** — admins can't see animals, so kennel occupancy is hidden for them.
 6. `http://` URLs are redirected (307) to `https://`. A plain Next.js rewrite passed that redirect to the browser, which then failed with a CORS error; the route-handler proxy now follows it on the server. Prefer the `https://` URL anyway.
+7. **Stay status "active-monitoring" instead of "staying"** (2026-11-17) — animals in quarantine come back with `status: "active-monitoring"`, and `GET /animals?status=staying` returns `[]`; `?status=active-monitoring` works. The app queries `active-monitoring` and treats both values as "in quarantine" (`STAYING_STATUS` / `isStaying` in `src/services/remote/mappers.ts`); the contract mock now uses `active-monitoring` too. Without this the inspections board, animals list, kennel pickers and occupancy showed no animals.
 
 ## 6. Re-audit against the collection (2026-11-13, second pass)
 
@@ -231,3 +232,17 @@ Live API, read-only GET probes (dev-token officer user 1 and NParks admin user 1
 | 403                 | `/animals` as NParks admin                                                                                                                                                       |
 
 Same as the first pass, so the backend items in §5 still stand.
+
+## 7. Live API re-check (2026-11-18)
+
+All collection routes now answer on the live API (previous 500s and medication 404s are gone; `GET /arrival-draft` 404 means "no draft yet"). Changes made:
+
+- **NParks admins can read `/animals`** (was 403): the admin-only skips were removed, so admins see the Animals badge and kennel occupancy. A 403 still falls back to the occupancy notice.
+- **Operations dashboard:** "Active animals", "Checks due" and the animal list now come from `GET /animals?status=active-monitoring` + `GET /animals/{id}/inspections?date=` (`src/services/remote/dashboard.ts`). In API mode the list is titled "Animals under monitoring" and has one row per active-monitoring stay. Its status is "Abnormal check" when today's inspection has an abnormal finding, otherwise "Monitoring". The "Today's checks" column summarises today's inspections, and the next action comes from the AM/PM check state. The Open cases and Needs review KPIs and "Assign follow-up" have no endpoint: the KPIs stay on demo data, and assigning is turned off for live rows.
+- **Health cases and review queue, derived from live data** (`src/services/remote/health.ts`). The API still has no case, queue or triage endpoint, so both are built from `GET /animals?status=active-monitoring` plus each animal's `GET /animals/{id}/inspections` (all dates) and `GET /animals/{id}/observations`.
+  - **Cases:** one case (`STAY-<stayId>`) per animal with abnormal inspections or observations in the last 14 days. It is "Needs review" while it has observations, otherwise "Open".
+  - **Review queue:** every observation from the last 14 days. Observations with no animal can't be listed.
+  - **Shared data:** the dashboard's Open cases and Needs review KPIs and the sidebar badges use the same numbers, and one load is shared for 5 s.
+  - **Read-only:** assign, follow-ups, notes, close/reopen, triage and skip are turned off.
+- **Still demo data (no endpoint):** AI triage results, audit log, medication schedules & administration log, templates, taxonomy, glossary, notification rules. Medication "Due today" is live but empty because no animal has a schedule (`scheduleCount: 0`) and the API has no endpoint to create one.
+- **Live data notes:** observations return `source: "observation"` (collection: `"staff"`) and stay `status: "processing"` with no AI result fields; `today.arrivalExam` in medication responses reads `"due"` even when `GET /animals/{id}/exam` returns an exam.

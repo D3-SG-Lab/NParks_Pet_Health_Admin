@@ -19,7 +19,7 @@ import { listCases, recordCaseExport, type CaseFilter } from "@/services/cases"
 
 import { CaseDetailPanel } from "./case-detail"
 import { CaseList } from "./case-list"
-import { MockDataBanner } from "@/components/common/api-banners"
+import { ApiNotices, DerivedDataBanner } from "@/components/common/api-banners"
 
 /** Health cases workbench — list + detail split view (FE-015, FE-016; Admin_Design.pdf p.4). */
 export function CasesScreen() {
@@ -86,7 +86,12 @@ export function CasesScreen() {
           </Button>
         }
       />
-      <MockDataBanner what="Health cases" />
+      <DerivedDataBanner>
+        The API has no case endpoint, so each case here is one animal in quarantine with abnormal inspection findings or staff observations
+        in the last 14 days. Cases with observations awaiting review show as “Needs review”. Assigning, follow-ups, notes and closing need a
+        case endpoint and are turned off.
+      </DerivedDataBanner>
+      <ApiNotices notices={list.data?.notices} />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
         <Panel className={paramId ? "hidden overflow-hidden lg:block" : "overflow-hidden"}>
           <CaseList

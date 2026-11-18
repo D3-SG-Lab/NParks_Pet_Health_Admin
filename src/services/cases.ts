@@ -21,6 +21,8 @@ import {
 } from "./core"
 import { CLOSE_REASON_LABEL, caseAiSummary, caseNextAction, speciesName, type NextAction } from "./derive"
 import { stayProgress } from "@/lib/clock"
+import { isApiMode } from "./api/config"
+import * as liveHealth from "./remote/health"
 
 export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
   open: "Open",
@@ -39,6 +41,11 @@ export interface CaseListItem {
   assigneeName: string
   observationCount: number
   nextAction: NextAction
+  /**
+   * API mode: derived from live inspections and observations (`remote/health.ts`).
+   * Read-only — the API has no case endpoints.
+   */
+  live?: boolean
 }
 
 function listItem(db: Db, c: HealthCase): CaseListItem {
@@ -55,7 +62,8 @@ function listItem(db: Db, c: HealthCase): CaseListItem {
 
 export async function listCases(
   params: { filter?: CaseFilter; search?: string } = {}
-): Promise<{ items: CaseListItem[]; counts: Record<CaseFilter, number> }> {
+): Promise<{ items: CaseListItem[]; counts: Record<CaseFilter, number>; notices?: string[] }> {
+  if (isApiMode()) return liveHealth.listCases(params)
   await delay()
   const db = getDb()
   const user = currentUser(db)
@@ -116,6 +124,7 @@ export interface CaseDetail extends CaseListItem {
 }
 
 export async function getCase(id: string): Promise<CaseDetail> {
+  if (isApiMode()) return liveHealth.getCase(id)
   await delay()
   const db = getDb()
   const c = db.cases.find((x) => x.id === id)
@@ -384,6 +393,8 @@ export async function reopenCase(caseId: string, note: string): Promise<void> {
 
 /** Export audit for case PDFs / CSV (BE-024: "Exports respect user scope"). */
 export async function recordCaseExport(caseIds: string[], format: "PDF" | "CSV"): Promise<void> {
+  // API mode: the audit log is demo data and has no live case ids to record.
+  if (isApiMode()) return
   await delay(100)
   const db = getDb()
   const actor = currentUser(db)

@@ -45,6 +45,7 @@ import {
 import { createObservationRecord, processObservation } from "./observations"
 import { isApiMode } from "./api/config"
 import * as remote from "./remote/animals"
+import { invalidateLiveHealth } from "./remote/health"
 import { notInApi } from "./remote/mappers"
 
 export { loadExamDraft, saveExamDraft } from "./remote/animals"
@@ -509,7 +510,7 @@ export async function updateAnimal(id: string, patch: AnimalUpdate): Promise<Ani
 
 export async function releaseAnimal(id: string, note: string): Promise<void> {
   // API: PATCH /animals/{id}/status { status: "released", releaseDate } — the note is not stored.
-  if (isApiMode()) return remote.releaseAnimal(id)
+  if (isApiMode()) return remote.releaseAnimal(id).finally(invalidateLiveHealth)
   await delay()
   const actor = requirePermission("arrival", { what: "Release animal" })
   write((db) => {

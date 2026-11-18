@@ -4,6 +4,11 @@ import type { QueueItem } from "@/services/observations"
 
 export function reasonChip(item: QueueItem): { label: string; tone: ChipTone; dot: boolean } {
   const o = item.observation
+  // Live observations: the API reports processing state only, never an AI match.
+  if (item.live)
+    return o.aiStatus === "processing"
+      ? { label: "AI processing", tone: "neutral", dot: true }
+      : { label: "No AI result", tone: "warning", dot: false }
   if (o.aiStatus === "awaiting_confirmation")
     return { label: `Awaiting confirmation · ${percent(o.ai?.confidence ?? 0)}`, tone: "ai", dot: true }
   switch (o.ai?.reviewReason) {

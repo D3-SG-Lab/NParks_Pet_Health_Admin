@@ -26,6 +26,7 @@ import {
 import { activeCases, speciesName } from "./derive"
 import { isApiMode } from "./api/config"
 import * as remote from "./remote/observations"
+import * as liveHealth from "./remote/health"
 
 export const ROUTING_LABEL: Record<RoutingAction, string> = {
   timeline: "Timeline only",
@@ -128,7 +129,7 @@ export function processObservation(db: Db, obs: Observation): AiResult {
 }
 
 export async function createObservation(input: NewObservationInput): Promise<ObservationResult> {
-  if (isApiMode()) return remote.createObservation(input)
+  if (isApiMode()) return remote.createObservation(input).finally(liveHealth.invalidateLiveHealth)
   await delay()
   const db = getDb()
   const actor = requirePermission("record", { what: "Create observation" })
@@ -348,13 +349,20 @@ export interface QueueItem {
   waitingMinutes: number
   candidates: QueueCandidate[]
   suggestedAnimal: Animal | null
+  /** API mode: a live observation; triage has no endpoint, so it is read-only. */
+  live?: boolean
+  /** API mode: the derived case for the observation's animal. */
+  caseId?: string | null
 }
 
 function animalLite(db: Db, a: Animal): QueueCandidate["animal"] {
   return a
 }
 
-export async function listReviewQueue(sort: QueueSort = "oldest"): Promise<{ items: QueueItem[]; triagedToday: number }> {
+export async function listReviewQueue(
+  sort: QueueSort = "oldest"
+): Promise<{ items: QueueItem[]; triagedToday: number; notices?: string[] }> {
+  if (isApiMode()) return liveHealth.listReviewQueue(sort)
   await delay()
   const db = getDb()
   const user = currentUser(db)
@@ -442,7 +450,7 @@ export async function skipReviewItem(observationId: string): Promise<void> {
 
 /**
  * Search active animals: the observation animal picker and "Or search another
- * animal…" in triage. API mode uses `GET /animals?status=staying&search=` —
+ * animal…" in triage. API mode uses `GET /animals?status=active-monitoring&search=` —
  * except for triage (`local`), because the review queue still runs on demo data.
  */
 export async function searchActiveAnimals(

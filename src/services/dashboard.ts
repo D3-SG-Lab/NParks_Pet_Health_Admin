@@ -9,8 +9,11 @@ import { appendAudit, canSeeAnimal, clone, currentUser, delay, getDb, notify, re
 import { activeCases, animalAiSummary, caseNextAction, checkInfo, speciesName, type NextAction } from "./derive"
 import { isApiMode } from "./api/config"
 import { countStaying } from "./remote/animals"
+import { getLiveDashboard } from "./remote/dashboard"
+import { liveCaseCounts } from "./remote/health"
 
-export type UnwellStatus = "needs_review" | "open" | "monitoring"
+/** "abnormal" = an abnormal finding in today's inspections (API mode list). */
+export type UnwellStatus = "needs_review" | "abnormal" | "open" | "monitoring"
 export type UnwellFilter = "open" | "needs_review" | "last_7_days" | "assigned_to_me"
 
 export interface UnwellRow {
@@ -47,9 +50,19 @@ export interface DashboardData {
   rows: UnwellRow[]
   filterCounts: Record<UnwellFilter, number>
   updatedAt: string
+  /**
+   * API mode: every count and the animal list come from the API
+   * (`GET /animals?status=active-monitoring` + inspections + observations);
+   * Open cases and Needs review are the cases and queue derived in `remote/health.ts`.
+   */
+  liveCounts?: boolean
+  notices?: string[]
 }
 
-const STATUS_RANK: Record<UnwellStatus, number> = { needs_review: 0, open: 1, monitoring: 2 }
+const STATUS_RANK: Record<UnwellStatus, number> = { needs_review: 0, abnormal: 1, open: 2, monitoring: 3 }
+
+/** "Needs review" chip: AI review (demo) or an abnormal check today (API). */
+const isReviewRow = (r: UnwellRow) => r.status === "needs_review" || r.status === "abnormal"
 
 export async function getDashboard(): Promise<DashboardData> {
   await delay()
@@ -125,18 +138,24 @@ export async function getDashboard(): Promise<DashboardData> {
       })
     }
   }
+  // API mode: the list is every animal in `GET /animals?status=active-monitoring`.
+  const live = isApiMode() ? await getLiveDashboard() : null
+  if (live) {
+    rows.length = 0
+    rows.push(...live.rows)
+  }
   rows.sort((x, y) => STATUS_RANK[x.status] - STATUS_RANK[y.status] || y.updatedAt.localeCompare(x.updatedAt))
 
   const sevenAgo = addDays(today, -7)
   for (const r of rows) {
     r.filters = ["open"]
-    if (r.status === "needs_review") r.filters.push("needs_review")
+    if (isReviewRow(r)) r.filters.push("needs_review")
     if (r.updatedAt.slice(0, 10) >= sevenAgo) r.filters.push("last_7_days")
     if (r.assigneeId === user.id) r.filters.push("assigned_to_me")
   }
   const filterCounts: Record<UnwellFilter, number> = {
     open: rows.length,
-    needs_review: rows.filter((r) => r.status === "needs_review").length,
+    needs_review: rows.filter(isReviewRow).length,
     last_7_days: rows.filter((r) => r.updatedAt.slice(0, 10) >= sevenAgo).length,
     assigned_to_me: rows.filter((r) => r.assigneeId === user.id).length,
   }
@@ -157,10 +176,12 @@ export async function getDashboard(): Promise<DashboardData> {
       casesUpdatedToday: open.filter((c) => c.updatedAt.startsWith(today)).length,
       followUpsOverdue,
       needsReview,
+      ...(live ? { ...live.counts, followUpsOverdue: 0 } : {}),
     },
     rows,
     filterCounts,
     updatedAt: nowISO(),
+    ...(live ? { liveCounts: true, notices: live.notices } : {}),
   }
 }
 
@@ -285,11 +306,17 @@ export async function getNavCounts(): Promise<{ animals: number; cases: number; 
   const user = currentUser(db)
   const animals = db.animals.filter((a) => a.stayStatus !== "released" && canSeeAnimal(user, a))
   const ids = new Set(animals.map((a) => a.id))
-  // API mode: the Animals badge counts staying animals from `GET /animals?status=staying`.
-  // NParks admins can't read animal stays (403), so their badge shows 0.
-  const animalCount = !isApiMode() ? animals.length : user.role === "admin" ? 0 : await countStaying().catch(() => 0)
+  // API mode: the Animals badge counts staying animals from `GET /animals?status=active-monitoring`.
+  // Cases and Review come from the live-derived cases and queue (`remote/health.ts`).
+  if (isApiMode()) {
+    const [animalCount, live] = await Promise.all([
+      countStaying().catch(() => 0),
+      liveCaseCounts().catch(() => ({ openCases: 0, needsReview: 0 })),
+    ])
+    return { animals: animalCount, cases: live.openCases, review: live.needsReview }
+  }
   return {
-    animals: animalCount,
+    animals: animals.length,
     cases: db.cases.filter((c) => c.status !== "closed" && ids.has(c.animalId)).length,
     review: db.observations.filter((o) => o.aiStatus === "needs_review" || o.aiStatus === "awaiting_confirmation").length,
   }

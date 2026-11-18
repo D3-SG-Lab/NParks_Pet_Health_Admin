@@ -18,13 +18,18 @@ import { getReferenceData } from "@/services/reference"
 
 import { pluralCount, timeOrDay, waitingLabel } from "../cases/case-helpers"
 import { reasonChip, reporterLabel } from "./review-helpers"
-import { TriagePanel } from "./triage-panel"
-import { MockDataBanner } from "@/components/common/api-banners"
+import { LiveObservationPanel, TriagePanel } from "./triage-panel"
+import { ApiNotices, DerivedDataBanner } from "@/components/common/api-banners"
+import { isApiMode } from "@/services/api/config"
 
 function subLine(item: QueueItem): string {
   const o = item.observation
   const photos = o.media.filter((m) => m.kind === "photo").length
   const media = o.media.length ? pluralCount(o.media.length, photos === o.media.length ? "photo" : "attachment") : null
+  if (item.live) {
+    const a = item.suggestedAnimal
+    return [a ? `${a.kennelCode} ${a.name}` : null, media, `waiting ${waitingLabel(item.waitingMinutes)}`].filter(Boolean).join(" · ")
+  }
   const reason = o.ai?.reviewReason
   if (o.aiStatus === "awaiting_confirmation" || reason === "low_confidence") {
     const s = item.suggestedAnimal
@@ -47,6 +52,7 @@ function ReviewQueue() {
   const paramId = params.get("id")
   const selected = items.find((i) => i.observation.id === paramId) ?? items[0] ?? null
   const threshold = ref.data?.settings.aiConfidenceThreshold ?? 0.8
+  const live = isApiMode()
 
   const select = (id: string | null) => router.replace(id ? `${pathname}?id=${encodeURIComponent(id)}` : pathname, { scroll: false })
 
@@ -62,17 +68,27 @@ function ReviewQueue() {
     <div className="space-y-6">
       <PageHeader
         title="Review queue"
-        description={`Observations the AI could not match, or scored below the ${percent(threshold)} confidence threshold. Pick the animal and case action manually.`}
+        description={
+          live
+            ? "Staff observations from the last 14 days. The API doesn’t return an AI match or routing yet, so every observation waits here."
+            : `Observations the AI could not match, or scored below the ${percent(threshold)} confidence threshold. Pick the animal and case action manually.`
+        }
         meta={
           q.data ? (
             <>
-              <StatusChip tone="warning">{items.length} to triage</StatusChip>
-              <StatusChip tone="success">{q.data.triagedToday} triaged today</StatusChip>
+              <StatusChip tone="warning">
+                {items.length} {live ? "to review" : "to triage"}
+              </StatusChip>
+              {live ? null : <StatusChip tone="success">{q.data.triagedToday} triaged today</StatusChip>}
             </>
           ) : null
         }
       />
-      <MockDataBanner what="The AI review queue and triage" />
+      <DerivedDataBanner>
+        The API has no review-queue endpoint, so this lists the observations recorded against each animal in quarantine. Observations
+        without an animal can’t be listed, and triage (confirm, skip) needs an endpoint, so it is turned off.
+      </DerivedDataBanner>
+      <ApiNotices notices={q.data?.notices} />
       {q.error ? (
         <Panel>
           <QueryError error={q.error} onRetry={() => void q.refetch()} title="Couldn’t load the review queue" />
@@ -89,7 +105,7 @@ function ReviewQueue() {
                 <SelectContent>
                   <SelectItem value="oldest">Oldest first</SelectItem>
                   <SelectItem value="newest">Newest first</SelectItem>
-                  <SelectItem value="confidence">Lowest confidence</SelectItem>
+                  {live ? null : <SelectItem value="confidence">Lowest confidence</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -106,7 +122,11 @@ function ReviewQueue() {
             ) : items.length === 0 ? (
               <EmptyState
                 title="Queue is clear"
-                description="Every observation has been matched and routed. New items appear here when the AI needs help."
+                description={
+                  live
+                    ? "No observations recorded in the last 14 days."
+                    : "Every observation has been matched and routed. New items appear here when the AI needs help."
+                }
                 className="px-4 py-10"
               />
             ) : (
@@ -150,7 +170,11 @@ function ReviewQueue() {
             {q.isPending ? (
               <PanelSkeleton lines={8} />
             ) : selected ? (
-              <TriagePanel key={selected.observation.id} item={selected} onDone={onDone} onBack={() => select(null)} />
+              selected.live ? (
+                <LiveObservationPanel key={selected.observation.id} item={selected} onBack={() => select(null)} />
+              ) : (
+                <TriagePanel key={selected.observation.id} item={selected} onDone={onDone} onBack={() => select(null)} />
+              )
             ) : (
               <EmptyState title="Nothing to triage" description="Pick an item from the queue when one arrives." className="py-16" />
             )}

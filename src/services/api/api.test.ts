@@ -5,7 +5,7 @@ import { http, setSessionExpiredHandler } from "./axios-instance"
 import { toApiError } from "./errors"
 import { readClaims } from "./jwt"
 import { clearTokens, getTokens, setTokens } from "./token-store"
-import { sexOf, toAnimal, toInspection, toInspectionRequest } from "../remote/mappers"
+import { isStaying, sexOf, STAYING_STATUS, toAnimal, toInspection, toInspectionRequest } from "../remote/mappers"
 import type { AnimalStayDto, DailyInspectionDto } from "./types"
 
 function axiosError(status: number, data: unknown, config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig): AxiosError {
@@ -93,6 +93,18 @@ describe("mappers", () => {
     expect(toAnimal(stay).stayStatus).toBe("active")
     expect(toAnimal({ ...stay, status: "released", releaseDate: "2026-11-10" }).stayStatus).toBe("released")
     expect(sexOf("Female")).toBe("F")
+  })
+
+  it("treats the live API's active-monitoring status as staying", () => {
+    expect(STAYING_STATUS).toBe("active-monitoring")
+    expect(isStaying("active-monitoring")).toBe(true)
+    expect(isStaying("staying")).toBe(true)
+    expect(isStaying("released")).toBe(false)
+    expect(isStaying("deceased")).toBe(false)
+    const live = { ...stay, status: "active-monitoring" as const }
+    expect(toAnimal(live).stayStatus).toBe("active")
+    expect(toAnimal(live, false).stayStatus).toBe("arriving")
+    expect(toAnimal({ ...stay, status: "deceased" }).stayStatus).toBe("released")
   })
 
   it("builds the inspection body with the API's fixed fields", () => {

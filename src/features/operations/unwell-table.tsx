@@ -13,6 +13,7 @@ export type UnwellSortKey = "animal" | "status" | "next"
 
 export const UNWELL_STATUS: Record<UnwellStatus, { label: string; tone: "warning" | "info" | "neutral"; dot: boolean }> = {
   needs_review: { label: "Needs review", tone: "warning", dot: true },
+  abnormal: { label: "Abnormal check", tone: "warning", dot: true },
   open: { label: "Open", tone: "info", dot: true },
   monitoring: { label: "Monitoring", tone: "neutral", dot: false },
 }
@@ -34,6 +35,8 @@ export function UnwellTable({
   sort,
   onSort,
   canAssign,
+  summaryHeader = "AI summary",
+  assignHint = "Your role can't assign follow-ups",
 }: {
   rows: UnwellRow[]
   selectedId: string | null
@@ -42,6 +45,9 @@ export function UnwellTable({
   sort: { key: UnwellSortKey; dir: SortDir }
   onSort: (s: { key: UnwellSortKey; dir: SortDir }) => void
   canAssign: boolean
+  /** API mode: the column shows today's inspections, not an AI summary. */
+  summaryHeader?: string
+  assignHint?: string
 }) {
   return (
     <TableScroll>
@@ -50,7 +56,7 @@ export function UnwellTable({
           <tr>
             <SortTh label="Animal" sortKey="animal" sort={sort} onSort={onSort} />
             <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />
-            <Th>AI summary</Th>
+            <Th>{summaryHeader}</Th>
             <Th>Assigned</Th>
             <SortTh label="Next action" sortKey="next" sort={sort} onSort={onSort} />
             <Th align="right">Action</Th>
@@ -95,7 +101,7 @@ export function UnwellTable({
                     size="sm"
                     variant="outline"
                     disabled={!canAssign}
-                    title={canAssign ? undefined : "Your role can't assign follow-ups"}
+                    title={canAssign ? undefined : assignHint}
                     onClick={(e) => {
                       e.stopPropagation()
                       onAssign(r.animal.id)

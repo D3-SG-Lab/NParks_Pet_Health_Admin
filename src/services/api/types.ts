@@ -153,7 +153,11 @@ export interface UpdateActiveRequest {
 
 export type StaySpecies = "Dog" | "Cat" | "Other"
 export type StaySex = "Male" | "Female" | "Unknown"
-export type StayStatusDto = "staying" | "released" | "deceased"
+/**
+ * The collection documents "staying"; the live API returns and filters on
+ * "active-monitoring" for animals in quarantine (2026-11-17). Both are accepted.
+ */
+export type StayStatusDto = "active-monitoring" | "staying" | "released" | "deceased"
 
 export interface AnimalStayDto {
   id: number
